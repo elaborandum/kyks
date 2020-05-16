@@ -1,0 +1,25 @@
+{% load i18n %}
+{% load kyks_tags %}
+
+{% block users %}
+  {% if user.is_authenticated %}
+    <a href="#">{% trans "Hello" %} {{ user.first_name|default:user.username }}</a>
+    <ul class="menu vertical">
+      {% if style >= Styles.SHOW %}
+        <li>{% kykin kyk.change_status %}</li>
+        {% if style >= Styles.PAGE %}
+          <li>{% kykin kyk.edit %}</li>
+        {% else %}
+          <li>{% kykin kyk.edit_button %}</li>
+        {% endif %}
+      {% endif %}
+      <li>{% kykin kyk.logout %}</li>
+    </ul>
+  {% else %}
+    <a href="#">{% trans "Please log in for more options." %}</a>
+    <ul class="menu vertical">
+      <li>{% kykin kyk.login %}</li>
+      <li>{% kykin kyk.register %}</li>
+    </ul>
+  {% endif %}
+{% endblock users %}

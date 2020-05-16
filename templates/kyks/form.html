@@ -1,0 +1,19 @@
+{% load i18n %}
+<form action="{{ destination_url|default:'.'}}" method="post" {% if file_upload %} enctype="multipart/form-data" {% endif %}>
+  {% csrf_token %}
+  {% if form %}
+    {{ form.media }}
+    {{ form.as_p }}
+  {% endif %}
+  {% for extra_form in forms %}
+      {{ extra_form.media }}
+      {{ extra_form.as_p }}
+  {% endfor %}
+  {% if alert %}
+    <p><span class="alert label">{{ alert }}</span></p>
+  {% endif %}
+  {% if cancel_label %}
+    <a href="." class="button">{% trans cancel_label %}</a>
+  {% endif %}
+  <input class="button" type="submit" name="{{ submitter }}" value="{% trans submit_label %}">
+</form>

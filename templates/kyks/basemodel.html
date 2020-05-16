@@ -1,0 +1,13 @@
+{% if style >= Styles.SHOW %}
+  {% block kykshow %}
+    {{ kyk }}
+  {% endblock kykshow %}
+{% elif style == Styles.BUTTON %}
+  <a class="button" href="{{ kyk.get_absolute_url }}">{{ logo }}{{ kyk }}</a>
+{% elif style >= Styles.LINK %}
+  <a href="{{ kyk.get_absolute_url }}">{{ kyk }}</a>
+{% else %}
+  {% block kyktext %}
+    {{ kyk }}
+  {% endblock kyktext %}
+{% endif %}
