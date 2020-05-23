@@ -3,76 +3,17 @@
 from django.conf import settings
 from django.db import models, IntegrityError
 from django import forms
-from django.template import engines, TemplateSyntaxError
+from django.template import Template
 from django.urls import reverse
 from django.utils import html
 from django.utils.functional import cached_property
-from django.utils.translation import gettext
+from django.utils.translation import gettext_lazy
 
 from ..exceptions import Redirection
 from ..utils import instantiate, cached_classproperty
 
+
 #======================================================================================================================
-
-class Choices:
-    """
-    User friendly choices for fields with a choice attribute.
-    
-    Creation of an instance requires a max_length at which to truncate the keys
-    and a list of (name, label) pairs, where name should be a readable name to use in code
-    and label a user friendly text that will be used by the choice widget in forms.
-    In the database, the choices will be stored as a code that is equal to name[:max_length].
-    Alternatively, one can provide a (code, name, label) tuple to specify the code explicitly,
-    e.g. to avoid duplicate codes or to use more meaningfull codes.
-    
-    Usage:
-
-        STATES = Choices(4,
-                ('INACTIVE', _("Inactive")),
-                ('ACTIVE', _("Active")),
-                ('URGENT', _("Urgent")),
-                ('DONE', _("Done")),
-                ('IACC', 'INACCURATE', _('Inaccurate')),
-            )
-
-        state =  models.CharField(max_length=STATES.max_length, choices=STATES.choices, default=STATES.INACTIVE)      
-        # or equivalently:
-        state =  STATES.ChoiceField(default=STATES.INACTIVE)      
-        
-    """
-
-    def __init__(self, max_length, *args, **kwargs):
-        self.max_length = max_length
-        expanded_args = [(arg[0][:max_length], arg[-2], arg[-1]) for arg in args]
-        self._code = {name: code for code, name, label in expanded_args}
-        if settings.DEBUG:
-            if len(set(code for code, name, label in expanded_args)) != len(args):
-                raise KeyError
-        self.choices = [(code, label) for code, name, label in expanded_args]
-        # Set optional arguments.
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-        
-    def __getattr__(self, name):
-        return self._code[name] if name in self._code else super().__getattribute__(name)
-
-    def __iter__(self):
-        return self.choices.__iter__()
-
-    def __len__(self):
-        return self.choices.__len__()
-
-    def ChoiceField(self, *args, **kwargs):
-        return models.CharField(max_length=self.max_length, choices=self.choices, *args, **kwargs)
-
-    def __all_keys__(self):
-        """
-        Return a list of all codes defined in the list of choices.
-        """
-        return [code for code, label in self.choices]
-
-
-#----------------------------------------------------------------------------------------------------------------------
 
 class ParameterDict(dict):
     """
@@ -128,8 +69,6 @@ class Kyks(dict):
     """
 
     def __setitem__(self, key, value):
-        if not hasattr(value, 'kyk_in'):
-            raise TypeError("{} does not have a kykin method".format(key))
         if key != str(key):
             raise TypeError("{} must be a string".format(key))
         if key.isdigit():
@@ -151,7 +90,7 @@ class Kyks(dict):
             return decorating_name 
         else:
             def decorating_class(cls):
-                Kyks[cls.__name__] = cls()
+                self[cls.__name__] = cls()
                 return cls
             if name is None: 
                 # If the decorator was invoked as @Kyks.add()
@@ -159,26 +98,6 @@ class Kyks(dict):
             else:
                 # If the decorator was invoked as @Kyks.add
                 return decorating_class(cls=name)
-
-
-#======================================================================================================================
-    
-def template_from_string(template_string, using=None):
-    """
-    Convert a string into a template object, using a given template engine
-    or using the default backends from settings.TEMPLATES if no engine was specified.
-    """
-    # This function is based on django.template.loader.get_template, 
-    # but uses Engine.from_string instead of Engine.get_template.
-    # (The Engine class is defined in django.template.engine.py.)
-    chain = []
-    engine_list = engines.all() if using is None else [engines[using]]
-    for engine in engine_list:
-        try:
-            return engine.from_string(template_string)
-        except TemplateSyntaxError as e:
-            chain.append(e)
-    raise TemplateSyntaxError(template_string, chain=chain)
 
 
 #======================================================================================================================
@@ -294,8 +213,8 @@ class KykBase:
     # so KykBase does not make any reference to KykPanel.
 
     kyk_STATUS = Status.PUBLIC
-    kyk_TEMPLATE = template_from_string("{{ kyk }}")
-
+    kyk_TEMPLATE = Template("{{ kyk }}") 
+    
     def kyk_in(self, request, template=None, **kwargs):
         """
         Return the template and context used to render the kyk with the kykin tag.
@@ -323,12 +242,12 @@ class KykSimple(KykBase):
     def __init__(self, template):
         self.kyk_TEMPLATE = template
         
-    classmethod
+    @classmethod
     def from_string(cls, template_string):
         """
         Creates a simple kyk from a template provided as a text string.
         """
-        return cls(template_from_string(template_string))
+        return cls(Template(template_string))
 
 
 #----------------------------------------------------------------------------------------------------------------------
@@ -338,7 +257,7 @@ class KykModel(KykBase, models.Model):
     An abstract Django model that implements the KykBase attributes.
     """
 
-    kyk_STATUS = Status.User
+    kyk_STATUS = Status.USER
     kyk_TEMPLATE = Templates.MODEL
     kyk_FORM_TEMPLATE = Templates.FORM
 
@@ -463,7 +382,7 @@ class KykModel(KykBase, models.Model):
         action = 'Delete'
         submitter = '{}-{}'.format(self.identifier, action)
         if (request.method == 'GET') and (request.GET.get(action) == self.identifier):
-            alert = gettext("Are you sure you want to delete this item?")
+            alert = gettext_lazy("Are you sure you want to delete this item?")
             kwargs.update(alert=alert, submitter=submitter, submit_label="Confirm", 
                           cancel_label="Cancel")
             return form_template, kwargs
@@ -474,7 +393,7 @@ class KykModel(KykBase, models.Model):
                 self.delete()
             except IntegrityError:
                 return html.format_html('<p><span class="alert label">{}</span></p>', 
-                    gettext("This item could not be deleted."),
+                    gettext_lazy("This item could not be deleted."),
                     )
             else: # try succeeded
                 raise Redirection(redirection_page)
@@ -533,7 +452,7 @@ def KykGetButton(action, code, label=None, *, url='.'):
     template_string = '<a class="button" href="{}">{}</a>'
     complete_url = url_with_get(action, code, url=url)
     if label is None:
-        label = gettext(action.title()) # gettext translates the string
+        label = gettext_lazy(action.title()) # gettext translates the string
     return html.format_html(template_string, complete_url, label)
 
 

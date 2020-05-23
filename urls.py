@@ -17,6 +17,6 @@ from .views import KykView
 #----------------------------------------------------------------------------------------------------------------------
 
 urlpatterns = [
-    path('<str:app>/<str:model>/<int:pk>/', KykView(), 'kykmodel'),
+    path('<str:app>/<str:model>/<int:pk>/', KykView(), name='kykmodel'),
 ]
 

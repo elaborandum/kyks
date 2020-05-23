@@ -1,9 +1,10 @@
 from django import template as django_template
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
-#from django.template.loader_tags import IncludeNode
 from django.template.base import kwarg_re
 from django.utils import html
+
+from ..utils import template_from_file
 
 
 #======================================================================================================================
@@ -69,7 +70,7 @@ def kykin(context, kyk,  using=None, *args, **kwargs):
     if not allowed:
         return ''
     # Generate the content from the kyk.    
-    if hasattr(kyk, 'kyk_kykin'): 
+    if hasattr(kyk, 'kyk_in'): 
         # kyk is a kyk instance
         content = kyk.kyk_in(request, *args, **kwargs)
     elif callable(kyk):
@@ -80,17 +81,11 @@ def kykin(context, kyk,  using=None, *args, **kwargs):
     # Process the content if a (template, context) pair was returned.    
     if isinstance(content, tuple):
         template, extra_context = content
-        if not hasattr(template, 'template'):
-             # This part is copied from loader.render_to_string   
-             if isinstance(template, (list, tuple)):
-                 template = django_template.loader.select_template(template, using=using)
-             else:
-                 template = django_template.loader.get_template(template, using=using)
+        if not hasattr(template, 'render'): 
+            # In this case, template should be the file name of a template.
+            template = template_from_file(template)
         with context.update(extra_context):
-            content = template.template.render(context)
-            # We have to use template.template.render to bypass template.render
-            # because template.render requires context to be a dict. 
-            # It does not accept a RequestContext instance while template.template.render does.
+            content = template.render(context)
     return content
 
 

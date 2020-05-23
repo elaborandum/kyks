@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib import auth
+from django.contrib.auth.models import AbstractUser
 from django.utils.translation import gettext_lazy as _
 
 from ..exceptions import Redirection
@@ -10,7 +11,7 @@ from .base import Status, Templates, Kyks, KykBase, KykGetButton
 
 #======================================================================================================================
 
-class AbstractKykUser(KykBase, auth.models.AbstractUser):
+class AbstractKykUser(KykBase, AbstractUser):
     """
     A variant of the default user model that allows to treat user objects as kyks,
     and that assigns a status value to each user.
@@ -20,7 +21,7 @@ class AbstractKykUser(KykBase, auth.models.AbstractUser):
     """    
 
     kyk_STATUS = Status.STAFF  # only staff has implicit access to the action methods 
-    kyk_TEMPLATE = Templates.USER
+    #kyk_TEMPLATE = Templates.USER
 
     status = Status.USER # Default user status, will be overwritten by an instance attribute upon login.
 
@@ -59,7 +60,7 @@ class KykUser(AbstractKykUser):
     A variant of the default user model that allows to treat user objects as kyks,
     and that assigns a status value to each user.
     
-    Set AUTH_USER_MODEL = KykUser in settings.py to use this as your user class.
+    Set AUTH_USER_MODEL = 'kyks.KykUser' in settings.py to use this as your user class.
     """    
 
 
@@ -190,7 +191,7 @@ class Users(KykBase):
 #======================================================================================================================
 
 def set_user_status(user, session={}):
-    if not user.is_authenticated():
+    if not user.is_authenticated:
         user.max_status = Status.HUMAN if session.get('is_human', False) else Status.PUBLIC
     elif user.is_superuser:
         user.max_status = Status.ADMINISTRATOR
