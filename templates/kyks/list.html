@@ -3,8 +3,10 @@
 
 <ul>  
   {% for kyk in kyk_list  %}
-    <li>{% if style > Styles.SHOW %}
+    <li>{% if style >= Styles.PAGE %}
       {% kykin kyk style=Styles.QUOTE  %}
+    {% elif style >= Styles.SHOW %}
+      {% kykin kyk style=Styles.ITEM  %}
     {% else  %}
       {% kykin kyk style=Styles.LINK  %}
     {% endif  %}</li>
@@ -14,6 +16,9 @@
   <ul>
     {% if previous_index >= 0  %}
       <li><a class="button" href="./?index={{ previous_index }}&step={{ step }}">{% trans "Previous" %}</a></li>
+    {% endif %}
+    {% if style >= Styles.SHOW %}
+      <li>{% kykin Kyk.kyk_add %}</li>
     {% endif %}
     {% if next_index %}
       <li><a class="button" href="./?index={{ next_index }}&step={{ step }}">{% trans "Next" %}</a></li>

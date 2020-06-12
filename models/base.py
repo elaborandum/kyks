@@ -77,13 +77,13 @@ class Kyks(dict):
             raise Warning("Duplicate Kyk name {}".format(key))
         super().__setitem__(key, value)
 
-    def add(self, name=None):
+    def append(self, name=None):
         """
         Decorator that adds an instance of cls to the Kyks dictionnary 
         with the given name or cls.__name__ if no name is provided.
         """
         if isinstance(name, str):
-            # If the decorator was invoked as @Kyks.add('my_name')
+            # If the decorator was invoked as @Kyks.append('my_name')
             def decorating_name(cls):
                 self[name] = cls()
                 return cls
@@ -93,10 +93,10 @@ class Kyks(dict):
                 self[cls.__name__] = cls()
                 return cls
             if name is None: 
-                # If the decorator was invoked as @Kyks.add()
+                # If the decorator was invoked as @Kyks.append()
                 return decorating_class
             else:
-                # If the decorator was invoked as @Kyks.add
+                # If the decorator was invoked as @Kyks.append
                 return decorating_class(cls=name)
 
 
@@ -127,6 +127,8 @@ class restrict:
 
     def __call__(self, method):
         # Retrieve the underlying method (in case the method was decorated before).
+        if hasattr(method, 'bypass_restrictions'):
+            method = method.bypass_restrictions
         def restricted_method(kyk, request, *args, **kwargs):
             """
             Decorator function that returns the result of a kyk action method,
@@ -220,9 +222,12 @@ class KykBase:
         Return the template and context used to render the kyk with the kykin tag.
         """
         if template is None:
-            template = self.kyk_TEMPLATE
+            template = self.kyk_TEMPLATE 
+            # We can not set this as a default value for the template argument
+            # because subclasses would use KykBase.kyk_TEMPLATE
+            # instead of their own kyk_TEMPLATE value.
         kwargs.update(kyk=self)
-        return self.kyk_TEMPLATE, kwargs
+        return template, kwargs
 
     @classmethod
     def kyk_allowed(cls, user):
@@ -237,17 +242,20 @@ class KykBase:
 class KykSimple(KykBase):
     """
     A simple kyk that displays a template.
+    Additional attributes of the kyk can be provided as keyword arguments. 
     """
 
-    def __init__(self, template):
+    def __init__(self, template, **kwargs):
         self.kyk_TEMPLATE = template
+        for key, value in kwargs:
+            setattr(self, key, value)
         
     @classmethod
-    def from_string(cls, template_string):
+    def from_string(cls, template_string, **kwargs):
         """
         Creates a simple kyk from a template provided as a text string.
         """
-        return cls(Template(template_string))
+        return cls(Template(template_string), **kwargs)
 
 
 #----------------------------------------------------------------------------------------------------------------------
@@ -259,7 +267,8 @@ class KykModel(KykBase, models.Model):
 
     kyk_STATUS = Status.USER
     kyk_TEMPLATE = Templates.MODEL
-    kyk_FORM_TEMPLATE = Templates.FORM
+    kyk_LIST_TEMPLATE = Templates.LIST
+    kyk_EDITING = False # Flag to indicate if the kyk is being edited.
 
     class Meta:
         abstract = True
@@ -310,11 +319,13 @@ class KykModel(KykBase, models.Model):
         """
         Returns a ModelForm class to create or edit the kyk.
         """
-        return forms.modelform_factory(cls)
+        Form = forms.modelform_factory(cls)
+        Form.kyk_TEMPLATE = Templates.FORM
+        return Form
         
     @classmethod
-    def kyk_process_form(cls, action, identifier, request, *, label=None, 
-            style=None, redirection='.', form_template=None, **kwargs):
+    def kyk_process_form(cls, action, identifier, request, *, instance=None, 
+            label=None, style=None, redirection='.', form_template=None, **kwargs):
         """
         Present and process a form to create a new kyk.
         Sponsor can be a model instance or a string from which this method
@@ -340,7 +351,7 @@ class KykModel(KykBase, models.Model):
         else:
             # Display a button that calls to action.
             return KykGetButton(action, identifier, label=label)
-        form = cls.kyk_Form(data=data, files=files, prefix=submitter, **kwargs)
+        form = cls.kyk_Form(data=data, files=files, prefix=submitter, instance=instance, **kwargs)
         if posted and form.is_valid():
             kyk = form.save()
             if redirection is None:
@@ -348,7 +359,7 @@ class KykModel(KykBase, models.Model):
             else:
                 raise Redirection(redirection)
         if form_template is None:
-            form_template = cls.kyk_FORM_TEMPLATE
+            form_template = getattr(form, 'kyk_TEMPLATE', Templates.FORM)
         form_context = {
             'form': form,
             'submitter': submitter, 
@@ -357,6 +368,12 @@ class KykModel(KykBase, models.Model):
             }
         if style is not None:
             form_context['style'] = style
+        # If an instance is being edited, then set its kyk_EDITING attribute 
+        try:
+            instance.kyk_EDITING = True
+        except AttributeError:
+            # This happens if no instance was provided, e.g. when creating a new kyk.
+            pass
         return form_template, form_context
 
     @classmethod
@@ -365,14 +382,15 @@ class KykModel(KykBase, models.Model):
         """
         Present and process a form to create a new kyk.
         """
-        return cls.kyk_process_form('Create', cls.Identifier, request, **kwargs)
+        return cls.kyk_process_form('Create', cls.Identifier, request, initial=kwargs)
 
     @restrict(Status.EDITOR)
     def kyk_edit(self, request, **kwargs):
         """
         Present and process a form to edit this kyk.
         """
-        return self.kyk_process_form('Edit', self.identifier, request, instance=self, **kwargs)
+        return self.kyk_process_form('Edit', self.identifier, request, 
+                                     instance=self, initial=kwargs)
 
     @restrict(Status.EDITOR)
     def kyk_delete(self, request, form_template=Templates.FORM, **kwargs):
@@ -402,8 +420,7 @@ class KykModel(KykBase, models.Model):
             return KykGetButton(action, self.identifier)
 
     @classmethod   
-    def kyk_list(cls, request, index=0, size=20, order_by_fields=None, 
-                 template=Templates.LIST, **kwargs):
+    def kyk_list(cls, request, index=0, size=20, order_by_fields=[], template=None, **kwargs):
         """
         List a set of kyks.
         The GET parameter ``index`` and ``size`` can be used to select
@@ -415,9 +432,9 @@ class KykModel(KykBase, models.Model):
         """
         index = request.GET.get('index', index)
         size = request.GET.get('size', size)
-        order_by_fields = request.GET.get('order_by_fields', order_by_fields)
-        kyk_list = cls.objects.all()
-        if order_by_fields is not None:
+        #order_by_fields = request.GET.get('order_by_fields', order_by_fields)
+        kyk_list = cls.objects.filter(**kwargs) if kwargs else cls.objects.all()
+        if order_by_fields:
             kyk_list = kyk_list.order_by(*order_by_fields)
         previous_index = index - size
         if previous_index < 0 < index:
@@ -428,12 +445,15 @@ class KykModel(KykBase, models.Model):
         else:
             kyk_list = kyk_list[index:]
             next_index = 0
-        kwargs.update(previous_index=previous_index,
-                      next_index=next_index,
-                      size=size,
-                      kyk_list=kyk_list,
+        return (
+            cls.kyk_LIST_TEMPLATE if template is None else template, 
+            dict(previous_index=previous_index,
+                 next_index=next_index,
+                 size=size,
+                 kyk_list=kyk_list,
+                 Kyk=cls,
+                 ),
             )
-        return template, kwargs
         
 
 #======================================================================================================================
@@ -452,7 +472,8 @@ def KykGetButton(action, code, label=None, *, url='.'):
     template_string = '<a class="button" href="{}">{}</a>'
     complete_url = url_with_get(action, code, url=url)
     if label is None:
-        label = gettext_lazy(action.title()) # gettext translates the string
+        label = gettext_lazy(action.replace('_', ' ').title()) 
+        # gettext_lazy translates the string
     return html.format_html(template_string, complete_url, label)
 
 

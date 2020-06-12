@@ -1,7 +1,27 @@
+{% load kyks_tags %}
+{% block kyktitle %}
+  {% if style >= Styles.SHOW %}
+     {% with title=kyk.title %}
+       {% if title %}<h4>{{ title }}</h4>{% endif %}
+     {% endwith %}
+  {% endif %}
+{% endblock kyktitle %}
 {% if style >= Styles.SHOW %}
   {% block kykshow %}
-    {{ kyk }}
+    {% kykin kyk.kyk_delete %}
+    {% kykin kyk.kyk_edit %}
+    {% if not kyk.kyk_EDITING %}
+      {{ kyk }}
+    {% endif %}
   {% endblock kykshow %}
+{% elif style == Styles.ITEM %}
+  {% block kykitem %}
+    {% kykin kyk.kyk_delete %}
+    {% kykin kyk.kyk_edit %}
+    {% if not kyk.kyk_EDITING %}
+      <a href="{{ kyk.get_absolute_url }}">{{ kyk }}</a>
+    {% endif %}
+  {% endblock kykitem %}
 {% elif style == Styles.BUTTON %}
   <a class="button" href="{{ kyk.get_absolute_url }}">{{ logo }}{{ kyk }}</a>
 {% elif style >= Styles.LINK %}

@@ -12,6 +12,9 @@
   {% if alert %}
     <p><span class="alert label">{{ alert }}</span></p>
   {% endif %}
+  {% if reset_label %}
+    <input class="button" type="reset" value="{% trans reset_label %}">
+  {% endif %}
   {% if cancel_label %}
     <a href="." class="button">{% trans cancel_label %}</a>
   {% endif %}

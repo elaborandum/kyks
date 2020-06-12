@@ -66,7 +66,7 @@ class KykUser(AbstractKykUser):
 
 #======================================================================================================================
 
-@Kyks.add
+@Kyks.append
 class Users(KykBase):
     """
     A static kyk that handles user login/logout and status changes.
@@ -185,7 +185,7 @@ class Users(KykBase):
             raise Redirection('.')
         else:
             kwargs.update(form=form, submit_code=submit_code, submit_label=_("Set"), cancel_label=_("Cancel"))
-        return Templates.FORM, kwargs
+        return form.kyk_TEMPLATE, kwargs
     
 
 #======================================================================================================================
@@ -219,6 +219,8 @@ def logout(request):
 #======================================================================================================================
 
 class KykStatusForm(forms.Form):
+    
+    kyk_TEMPLATE = Templates.FORM
     
     status = forms.TypedChoiceField(coerce=int, label=_("Select status"), label_suffix=":", required=True)
     
