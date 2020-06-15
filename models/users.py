@@ -6,7 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from ..exceptions import Redirection
 from ..utils import cached_classproperty
 
-from .base import Status, Templates, Kyks, KykBase, KykGetButton
+from .base import Status, Templates, Kyks, KykBase, Action, KykGetButton
 
 
 #======================================================================================================================
@@ -76,6 +76,7 @@ class Users(KykBase):
     kyk_FORM_TEMPLATE = Templates.FORM
     # template = Template("My name is {{ request.user.username }}.")
     
+    @Action.apply()    
     def register(self, request, *args, **kwargs):
         """
         Registers a new user.
@@ -104,6 +105,7 @@ class Users(KykBase):
             kwargs.update(form=form, submitter=submitter, submit_label=_("Save"), cancel_label=_("Cancel"))
         return self.kyk_FORM_TEMPLATE, kwargs
 
+    @Action.apply()    
     def login(self, request, *args, **kwargs):
         """
         Log the user in.
@@ -131,6 +133,7 @@ class Users(KykBase):
             kwargs.update(form=form, submit_code=submit_code, submit_label=_("Log in"))
             return Templates.FORM, kwargs
         
+    @Action.apply()    
     def logout(self, request, *args, **kwargs):
         """
         Log the user out.
@@ -143,14 +146,17 @@ class Users(KykBase):
             kwargs.update(submit_code=submit_code, submit_label=_("Log out"))
             return Templates.FORM, kwargs
 
+    @Action.apply()
     def loginout(self, request, *args, **kwargs):
         return self.login(request, *args, **kwargs
             ) if request.user.is_anonymous else self.logout(request, *args, **kwargs)
 
+    @Action.apply()
     def edit_button(self, request, *args, **kwargs):
         action = 'edit'
         return KykGetButton(action, self.prefix, label=_("Edit profile"), url=self.get_absolute_url())
 
+    @Action.apply()
     def edit(self, request, *args, **kwargs):
         action = 'edit'
         submit_code = '{}-{}:ok'.format(self.prefix, action)
@@ -167,6 +173,7 @@ class Users(KykBase):
             kwargs.update(form=form, submit_code=submit_code, submit_label=_("Save"), cancel_label=_("Cancel"))
         return self.kyk_FORM_TEMPLATE, kwargs
 
+    @Action.apply()
     def change_status(self, request, *args, **kwargs):
         """
         Show a form that allows the user to change his status.

@@ -10,7 +10,7 @@ from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy
 
 from ..exceptions import Redirection
-from ..utils import instantiate, cached_classproperty
+from ..utils import cached_classproperty, is_classmethod
 
 
 #======================================================================================================================
@@ -62,148 +62,41 @@ Styles = ParameterDict(*settings.KYK_STYLES)
 
 #======================================================================================================================
 
-@instantiate()
-class Kyks(dict):
-    """
-    A dict that only allows objects with a kyk_in method.
-    """
 
-    def __setitem__(self, key, value):
-        if key != str(key):
-            raise TypeError("{} must be a string".format(key))
-        if key.isdigit():
-            raise TypeError("{} should not be a number".format(key))
-        if key in self:
-            raise Warning("Duplicate Kyk name {}".format(key))
-        super().__setitem__(key, value)
+class kykdict(dict):
+    pass
 
-    def append(self, name=None):
-        """
-        Decorator that adds an instance of cls to the Kyks dictionnary 
-        with the given name or cls.__name__ if no name is provided.
-        """
-        if isinstance(name, str):
-            # If the decorator was invoked as @Kyks.append('my_name')
-            def decorating_name(cls):
-                self[name] = cls()
-                return cls
-            return decorating_name 
+Kyks = kykdict() # A dict used to store static kyks.
+# The kyks context processor makes it available in templates.
+# We use a custum dict class in order to be able to set attributes on Kyks,
+# e.g. Kyks.append
+
+def append2Kyks(name=None):
+    """
+    Decorator that adds an instance of cls to the Kyks dictionnary 
+    with the given name or cls.__name__ if no name is provided.
+    """
+    if isinstance(name, str):
+        # If the decorator was invoked as @append2Kyks('my_name')
+        def decorating_name(cls):
+            Kyks[name] = cls()
+            return cls
+        return decorating_name 
+    else:
+        def decorating_class(cls):
+            Kyks[cls.__name__] = cls()
+            return cls
+        if name is None: 
+            # If the decorator was invoked as @append2Kyks()
+            return decorating_class
         else:
-            def decorating_class(cls):
-                self[cls.__name__] = cls()
-                return cls
-            if name is None: 
-                # If the decorator was invoked as @Kyks.append()
-                return decorating_class
-            else:
-                # If the decorator was invoked as @Kyks.append
-                return decorating_class(cls=name)
+            # If the decorator was invoked as @append2Kyks
+            return decorating_class(cls=name)
+
+Kyks.append = append2Kyks 
+# Kyks.append was not defined as a method on kykdict in order to be able to use it as a decorator
 
 
-#======================================================================================================================
-
-class restrict:
-    """
-    A decorator that restricts access to action methods based upon the status of the user.
-    The user status must be greater than or equal to the given status.
-    
-    This decorator should always be called with parentheses::
-
-        @restrict(Status.EDITOR)
-
-    This limits access to the method to users with a status equal to or higher than ``Status.EDITOR``.
-    The default status is ``Status.USER``, called as::
-        
-        @restrict()
-
-    The original method is stored as the attribute ''bypass_restrictions'' on the
-    decorated method in order to facilitate looser restrictions in subclasses.
-    """
-
-    DEFAULT_STATUS = Status.USER
-
-    def __init__(self, status=DEFAULT_STATUS):
-        self.status = status
-
-    def __call__(self, method):
-        # Retrieve the underlying method (in case the method was decorated before).
-        if hasattr(method, 'bypass_restrictions'):
-            method = method.bypass_restrictions
-        def restricted_method(kyk, request, *args, **kwargs):
-            """
-            Decorator function that returns the result of a kyk action method,
-            i,e. a string or a (template, context) pair.
-            """
-            return restricted_method.bypass_restrictions(kyk, request, *args, **kwargs
-                ) if request.user.status >= self.status else ''
-        # Store the original method as an attribute on the new method,
-        # so that subclasses can define less strict access conditions.
-        restricted_method.bypass_restrictions = method
-        return restricted_method
-
-
-#----------------------------------------------------------------------------------------------------------------------
-    
-class allow_author:
-    """
-    A decorator that allows a user to bypass previous restrictions
-    if he is the author of a kyk and has suficient status.
-    
-    This decorator should always be called with parentheses and precede other resgtrictions::
-
-        @allow_author(Status.USER)
-        @restrict(Status.STAFF)
-
-    This gives access to the method to the user who is the author of the kyk
-    and has a status equal to or higher than ``Status.EDITOR``.
-
-    The default status is ``Status.USER``, called as::
-        
-        @allow_author()
-        @restrict()
-
-    The default author field on the kyk is ``author``.
-    This can be modified by redefining the ``AUTHOR_FIELD`` on the class
-    or by passing in an additional ``author_field`` keyword to the decorator.
-
-        @allow_author(author_field='owner')
-        @restrict(Status.ADMINISTRATOR)
-
-    The original method is stored as the attribute ''bypass_restrictions'' on the
-    decorated method in order to facilitate looser restrictions in subclasses.
-    """
-
-    DEFAULT_STATUS = Status.USER
-    AUTHOR_FIELD = 'author'
-
-    def __init__(self, status=DEFAULT_STATUS, author_field=AUTHOR_FIELD):
-        self.status = status
-        self.author_field = author_field
-
-    def __call__(self, method):
-        # Retrieve the underlying method (in case the method was decorated before).
-        if not hasattr(method, 'bypass_restrictions'):
-            # The method was unrestricted so there is no use in allowing priviliged access.
-            return method
-        def allowed_method(kyk, request, *args, **kwargs):
-            """
-            Decorator function that returns the result of a kyk action method,
-            i,e. a string or a (template, context) pair.
-            """
-            try:
-                author = getattr(kyk, self.author_field)
-            except AttributeError:
-                return method(kyk, request, *args, **kwargs)
-            else:
-                return allowed_method.bypass_restrictions(kyk, request, *args, **kwargs
-                    ) if (request.user == author) and (request.user.status >= self.status
-                    ) else method(kyk, request, *args, **kwargs)
-        # Store the original method as an attribute on the new method,
-        # so that subclasses can define alternative access conditions.
-        allowed_method.bypass_restrictions = method.bypass_restrictions
-        return allowed_method
- 
-    
 #======================================================================================================================
 
 class KykBase:
@@ -214,7 +107,8 @@ class KykBase:
     # Note that KykPanel only makes sense for static and dynamic page kyks, 
     # so KykBase does not make any reference to KykPanel.
 
-    kyk_STATUS = Status.PUBLIC
+    kyk_STATUS = Status.PUBLIC # Default required status to view the kyk
+    kyk_ACTION_STATUS = Status.STAFF # Default required status to act on the kyk
     kyk_TEMPLATE = Template("{{ kyk }}") 
     
     def kyk_in(self, request, template=None, **kwargs):
@@ -229,15 +123,115 @@ class KykBase:
         kwargs.update(kyk=self)
         return template, kwargs
 
-    @classmethod
-    def kyk_allowed(cls, user):
+    def kyk_allowed(self, user):
         """
         Check whether the user has sufficient status to access self (returns True or False).
         """
-        return user.status >= cls.kyk_STATUS
+        return user.status >= self.kyk_STATUS
 
     
+#======================================================================================================================
+
+class Action(KykBase):
+    """
+    Action to be used in the Activate decorator.
+    Sets the allowed status to the given status value or if that is None,
+    then to cls.kyk_ACTION_STATUS where cls is the class where the method is decorated. 
+    """
+
+    def __init__(self, status=None):
+        print("initializing", self, status)
+        if status is not None:
+            self.kyk_STATUS = status
+
+    @cached_property # This will be overriden if status is provided upon initialization.
+    #@property # Does not work with @property because property.__set__ is messed up.
+    def kyk_STATUS(self):
+        return self._cls.kyk_ACTION_STATUS
+
+    def __get__(self, instance, cls=None):
+        self._instance, self._cls = instance, cls
+        return self
+
+    @classmethod
+    def apply(cls, *args, **kwargs):
+        """
+        Generates a decorator that converts an action method into an action kyk of this class.
+        The method has to be invoked on the class, otherwise it will not work as a decorator::
+            
+            @Action.apply(Status.STAFF)
+            def my_action_method(self, request, *args, **kwargs):
+            
+        """
+        action = cls(*args, **kwargs)
+        def decorator(obj):
+            method = obj.kyk_in.method if isinstance(obj, Action) else obj
+            if is_classmethod(method):
+                def kyk_in(*args, **kwargs):
+                    """
+                    Return the template and context used to render the kyk with the kykin tag.
+                    """
+                    return kyk_in.method(action._cls, *args, **kwargs)
+            else:       
+                def kyk_in(*args, **kwargs):
+                    """
+                    Return the template and context used to render the kyk with the kykin tag.
+                    """
+                    return kyk_in.method(action._instance, *args, **kwargs)
+            kyk_in.method = method
+            action.kyk_in = kyk_in
+            return action
+        return decorator
+  
+
 #----------------------------------------------------------------------------------------------------------------------
+    
+class AuthorAction(Action):
+    """
+    An action decorator that allows a user to bypass previous restrictions
+    if he is the author of a kyk and has suficient status.
+    
+        @AuthorAction(Status.USER, author_field='owner').apply()
+
+    This gives access to the method to the user who is the author of the kyk
+    and has a status equal to or higher than ``Status.USER``.
+
+    The default author status is ``Status.USER``. 
+    This can be modified by redefining the ``AUTHOR_STATUS`` on the class
+    or by passing in an additional ``author_status`` keyword upon initialization.
+
+    The default author field on the kyk is ``author``. This can be modified 
+    by passing in an additional ``author_field`` keyword upon initialization.
+
+    One can also define a minimum status level for users other than the author.
+    Otherwise the kyk_ACTION_STATUS value of the containing class will be used.
+
+    """
+
+    AUTHOR_STATUS = Status.USER
+
+    def __init__(self, author_status=None, status=None, *, author_field='author'):
+        if author_status is not None:
+            self.AUTHOR_STATUS = author_status
+        self.AUTHOR_FIELD = author_field
+        super().__init__(status=status)
+
+    def kyk_allowed(self, user):
+        """
+        Check whether the user has sufficient status to access self (returns True or False).
+        """
+        required_status = self.kyk_STATUS
+        try:
+            author = getattr(self._intance, self.AUTHOR_FIELD)
+        except AttributeError:
+            pass
+        else:
+            if user == author:
+                required_status = self.AUTHOR_STATUS
+        return user.status >= required_status
+ 
+        
+#======================================================================================================================
 
 class KykSimple(KykBase):
     """
@@ -245,8 +239,10 @@ class KykSimple(KykBase):
     Additional attributes of the kyk can be provided as keyword arguments. 
     """
 
-    def __init__(self, template, **kwargs):
+    def __init__(self, template, status=None, **kwargs):
         self.kyk_TEMPLATE = template
+        if status is not None:
+            self.kyk_STATUS = status
         for key, value in kwargs:
             setattr(self, key, value)
         
@@ -260,6 +256,89 @@ class KykSimple(KykBase):
 
 #----------------------------------------------------------------------------------------------------------------------
 
+class KykList(KykBase):
+    """
+    An kyk that displays a query list of kyks.
+    """
+    kyk_TEMPLATE = Templates.LIST
+
+    def __init__(self, Model, query=None, *, order_by_fields=None, template=None, **kwargs):
+        """
+        Model : KykModel (or if query is given, then whatever model you want to add after the list).
+            The model for which to make the query.
+            At the end of the list, an option is given to add kyks of this type
+        query : callable, optional
+            Should return the query list. 
+            The default is None, in which case Model.objects.all is used.
+        order_by_fields : list, optional
+            A list of field names by which to order the query list.
+        template : template object or filename, optional
+            Template used to render the list. By default, Templates.LIST is used.
+        **kwargs : 
+            additional filter parameters to be used by query().filter 
+        """
+
+        self.Model = Model
+        if hasattr(Model, 'kyk_STATUS'):
+            self.kyk_STATUS = Model.kyk_STATUS
+        # query has to be callable! (Otherwise the instance would be reusing 
+        # the same querylist over and over again.)
+        self.query = Model.objects.all if query is None else query
+        self.order_by_fields = order_by_fields
+        if template is not None:
+            self.kyk_TEMPLATE = template
+        self.filters = kwargs
+
+    def kyk_in(self, request, index=0, size=20, order_by_fields=[], **kwargs):
+        """
+        List a set of kyks.
+        The GET parameter ``index`` and ``size`` can be used to select
+        a range ``[index:index+size]`` of kyks from the list.
+        One can specify a list of fields by which to order that will
+        be passed on the the ``order_by`` QuerySet method.
+        If no list of fields is supplied, the default ordering as defined in
+        Model.Meta.ordering is used.
+        """
+        index = request.GET.get('index', index)
+        size = request.GET.get('size', size)
+        #order_by_fields = request.GET.get('order_by_fields', order_by_fields)
+        filters = {**self.filters, **kwargs}
+        kyk_list = self.query().filter(**filters) if filters else self.query()
+        if order_by_fields:
+            kyk_list = kyk_list.order_by(*order_by_fields)
+        elif self.order_by is not None:
+            kyk_list = kyk_list.order_by(*self.order_by_fields)
+        previous_index = index - size
+        if previous_index < 0 < index:
+            previous_index = 0
+        next_index = index + size
+        if next_index < kyk_list.count():
+            kyk_list = kyk_list[index:next_index]
+        else:
+            kyk_list = kyk_list[index:]
+            next_index = 0
+        return (self.kyk_TEMPLATE, 
+                dict(previous_index=previous_index,
+                     next_index=next_index,
+                     size=size,
+                     kyk_list=kyk_list,
+                     kyk_add=self.kyk_add,
+                     ),
+                )
+
+    @Action.apply()
+    def kyk_add(self, request, *args, **kwargs):
+        """
+        Defines an action that adds a new kyk to the list.
+        """
+        if not self.Model.kyk_add.kyk_allowed(request.user):
+            return ''
+        kwargs = {**self.filters, **kwargs}
+        return self.Model.kyk_add(self, request, *args, **kwargs)
+
+
+#----------------------------------------------------------------------------------------------------------------------
+
 class KykModel(KykBase, models.Model):
     """
     An abstract Django model that implements the KykBase attributes.
@@ -267,7 +346,6 @@ class KykModel(KykBase, models.Model):
 
     kyk_STATUS = Status.USER
     kyk_TEMPLATE = Templates.MODEL
-    kyk_LIST_TEMPLATE = Templates.LIST
     kyk_EDITING = False # Flag to indicate if the kyk is being edited.
 
     class Meta:
@@ -376,15 +454,15 @@ class KykModel(KykBase, models.Model):
             pass
         return form_template, form_context
 
+    @Action.apply(Status.EDITOR)
     @classmethod
-    @restrict(Status.EDITOR)
     def kyk_create(cls, request, **kwargs):
         """
         Present and process a form to create a new kyk.
         """
         return cls.kyk_process_form('Create', cls.Identifier, request, initial=kwargs)
 
-    @restrict(Status.EDITOR)
+    @Action.apply(Status.EDITOR)
     def kyk_edit(self, request, **kwargs):
         """
         Present and process a form to edit this kyk.
@@ -392,7 +470,7 @@ class KykModel(KykBase, models.Model):
         return self.kyk_process_form('Edit', self.identifier, request, 
                                      instance=self, initial=kwargs)
 
-    @restrict(Status.EDITOR)
+    @Action.apply(Status.EDITOR)
     def kyk_delete(self, request, form_template=Templates.FORM, **kwargs):
         """
         Present and process a form to delete this kyk.
@@ -419,41 +497,6 @@ class KykModel(KykBase, models.Model):
             # Display a button that calls to action.
             return KykGetButton(action, self.identifier)
 
-    @classmethod   
-    def kyk_list(cls, request, index=0, size=20, order_by_fields=[], template=None, **kwargs):
-        """
-        List a set of kyks.
-        The GET parameter ``index`` and ``size`` can be used to select
-        a range ``[index:index+size]`` of kyks from the list.
-        One can specify a list of fields by which to order that will
-        be passed on the the ``order_by`` QuerySet method.
-        If no list of fields is supplied, the default ordering as defined in
-        Model.Meta.ordering is used.
-        """
-        index = request.GET.get('index', index)
-        size = request.GET.get('size', size)
-        #order_by_fields = request.GET.get('order_by_fields', order_by_fields)
-        kyk_list = cls.objects.filter(**kwargs) if kwargs else cls.objects.all()
-        if order_by_fields:
-            kyk_list = kyk_list.order_by(*order_by_fields)
-        previous_index = index - size
-        if previous_index < 0 < index:
-            previous_index = 0
-        next_index = index + size
-        if next_index < kyk_list.count():
-            kyk_list = kyk_list[index:next_index]
-        else:
-            kyk_list = kyk_list[index:]
-            next_index = 0
-        return (
-            cls.kyk_LIST_TEMPLATE if template is None else template, 
-            dict(previous_index=previous_index,
-                 next_index=next_index,
-                 size=size,
-                 kyk_list=kyk_list,
-                 Kyk=cls,
-                 ),
-            )
         
 
 #======================================================================================================================

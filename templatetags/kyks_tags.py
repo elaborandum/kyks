@@ -59,24 +59,14 @@ def kykin(context, kyk,  using=None, *args, **kwargs):
         else:
             return ''
     # Check if the user has permissions to access the kyk.
-    if hasattr(kyk, 'kyk_allowed'): 
-        # kyk is a Kyk instance
-        allowed = kyk.kyk_allowed(request.user)
-    elif hasattr(kyk, '__self__'):
-        # kyk is a method on a Kyk instance
-        allowed = kyk.__self__.kyk_allowed(request.user)
-    else:
-        allowed = True
-    if not allowed:
+    if hasattr(kyk, 'kyk_allowed') and not kyk.kyk_allowed(request.user):
         return ''
     # Generate the content from the kyk.    
-    if hasattr(kyk, 'kyk_in'): 
-        # kyk is a kyk instance
+    if hasattr(kyk, 'kyk_in'): # kyk is a kyk instance
         content = kyk.kyk_in(request, *args, **kwargs)
-    elif callable(kyk):
-        # kyk is a method on a kyk
+    elif callable(kyk): # kyk is a function
         content = kyk(request, *args, **kwargs)
-    else:
+    else: # kyk is a string
         content = kyk
     # Process the content if a (template, context) pair was returned.    
     if isinstance(content, tuple):
