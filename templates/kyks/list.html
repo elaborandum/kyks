@@ -1,18 +1,22 @@
 {% load i18n %}
 {% load kyks_tags %}
 
+<h5>Listing items</h5>
 <ul>  
   {% for kyk in kyk_list  %}
-    <li>{% if style >= Styles.PAGE %}
-      {% kykin kyk style=Styles.QUOTE  %}
-    {% elif style >= Styles.SHOW %}
-      {% kykin kyk style=Styles.ITEM  %}
-    {% else  %}
-      {% kykin kyk style=Styles.LINK  %}
-    {% endif  %}</li>
+    <li>
+      {% if style >= Styles.PAGE %}
+        {% kykin kyk style=Styles.QUOTE  %}
+      {% elif style >= Styles.SHOW %}
+        {% kykin kyk style=Styles.ITEM  %}
+      {% else  %}
+        {% kykin kyk style=Styles.LINK  %}
+      {% endif  %}
+    </li>
   {% endfor  %}
 </ul>
 <div>
+  <h5>Actions</h5>
   <ul>
     {% if previous_index >= 0  %}
       <li><a class="button" href="./?index={{ previous_index }}&step={{ step }}">{% trans "Previous" %}</a></li>

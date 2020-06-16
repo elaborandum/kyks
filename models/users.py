@@ -72,6 +72,7 @@ class Users(KykBase):
     A static kyk that handles user login/logout and status changes.
     """
 
+    kyk_ACTION_STATUS = Status.PUBLIC
     kyk_TEMPLATE = Templates.USERS
     kyk_FORM_TEMPLATE = Templates.FORM
     # template = Template("My name is {{ request.user.username }}.")
@@ -82,8 +83,8 @@ class Users(KykBase):
         Registers a new user.
         """
         action = 'reg'
-        submitter = '{}-{}:ok'.format(self.prefix, action)
-        if (request.method == 'GET') and (request.GET.get(action) == self.prefix):
+        submitter = '{}-{}'.format(self.identifier, action)
+        if (request.method == 'GET') and (request.GET.get(action) == self.identifier):
             # Present an unbound form to register the user
             data = None
         elif (request.method == 'POST') and (submitter in request.POST):
@@ -92,8 +93,8 @@ class Users(KykBase):
             data = request.POST
         else:
             # Display a button that calls to action.
-            return KykGetButton(action, self.prefix, label=_("Register"))
-        form = auth.get_user_model().UserCreationForm(data=data, prefix=self.prefix)
+            return KykGetButton(action, self.identifier, label=_("Register"))
+        form = auth.get_user_model().UserCreationForm(data=data, prefix=self.identifier)
         if form.is_valid():
             form.save()
             new_user = auth.authenticate(username=form.cleaned_data['username'],
@@ -111,18 +112,18 @@ class Users(KykBase):
         Log the user in.
         """
         action = 'login'
-        submit_code = '{}-{}:ok'.format(self.prefix, action)
-        if (request.method == 'GET') and (request.GET.get(action) == self.prefix):
+        submitter = '{}-{}'.format(self.identifier, action)
+        if (request.method == 'GET') and (request.GET.get(action) == self.identifier):
             # Present an unbound form to register the user
             data = None
-        elif (request.method == 'POST') and (submit_code in request.POST):
+        elif (request.method == 'POST') and (submitter in request.POST):
             # Process a bound form to register the user.
             # If it does not validate, then present it again.
             data = request.POST
         else:
             # Display a button that calls to action.
-            return KykGetButton(action, self.prefix, label=_("Login"))
-        form = auth.forms.AuthenticationForm(request, data=data, prefix=self.prefix)
+            return KykGetButton(action, self.identifier, label=_("Login"))
+        form = auth.forms.AuthenticationForm(request, data=data, prefix=self.identifier)
         if form.is_valid():                
             # AuthenticationForm.clean contains the following line::
             #     self.user_cache = authenticate(self.request, username=username, password=password)
@@ -130,7 +131,7 @@ class Users(KykBase):
             login(request, form.user_cache)
             raise Redirection('.')
         else:
-            kwargs.update(form=form, submit_code=submit_code, submit_label=_("Log in"))
+            kwargs.update(form=form, submitter=submitter, submit_label=_("Log in"))
             return Templates.FORM, kwargs
         
     @Action.apply()    
@@ -138,12 +139,12 @@ class Users(KykBase):
         """
         Log the user out.
         """
-        submit_code = self.prefix + ':logout'
-        if (request.method == 'POST') and (submit_code in request.POST):
+        submitter = self.identifier + ':logout'
+        if (request.method == 'POST') and (submitter in request.POST):
             logout(request)
             raise Redirection('.')
         else:
-            kwargs.update(submit_code=submit_code, submit_label=_("Log out"))
+            kwargs.update(submitter=submitter, submit_label=_("Log out"))
             return Templates.FORM, kwargs
 
     @Action.apply()
@@ -154,23 +155,23 @@ class Users(KykBase):
     @Action.apply()
     def edit_button(self, request, *args, **kwargs):
         action = 'edit'
-        return KykGetButton(action, self.prefix, label=_("Edit profile"), url=self.get_absolute_url())
+        return KykGetButton(action, self.identifier, label=_("Profile"),)# url=self.get_absolute_url())
 
     @Action.apply()
     def edit(self, request, *args, **kwargs):
         action = 'edit'
-        submit_code = '{}-{}:ok'.format(self.prefix, action)
-        if (request.method == 'GET') and (request.GET.get(action) == self.prefix):
+        submitter = '{}-{}'.format(self.identifier, action)
+        if (request.method == 'GET') and (request.GET.get(action) == self.identifier):
             data = None
-        elif (request.method == 'POST') and (submit_code in request.POST):
+        elif (request.method == 'POST') and (submitter in request.POST):
             data = request.POST
         else:
-            return KykGetButton(action, self.prefix, label=_("Edit profile"))
-        form = auth.get_user_model().UserChangeForm(data=data, prefix=self.prefix, instance=request.user)
+            return KykGetButton(action, self.identifier, label=_("Edit profile"))
+        form = auth.get_user_model().UserChangeForm(data=data, prefix=self.identifier, instance=request.user)
         if form.is_valid():
             form.save()
         else:
-            kwargs.update(form=form, submit_code=submit_code, submit_label=_("Save"), cancel_label=_("Cancel"))
+            kwargs.update(form=form, submitter=submitter, submit_label=_("Save"), cancel_label=_("Cancel"))
         return self.kyk_FORM_TEMPLATE, kwargs
 
     @Action.apply()
@@ -178,20 +179,18 @@ class Users(KykBase):
         """
         Show a form that allows the user to change his status.
         """
-        action = 'status'
-        submit_code = '{}-{}:ok'.format(self.prefix, action)
-        if (request.method == 'GET') and (request.GET.get(action) == self.prefix):
-            data = None
-        elif (request.method == 'POST') and (submit_code in request.POST):
+        action = 'setstatus'
+        submitter = '{}-{}'.format(self.identifier, action)
+        if (request.method == 'POST') and (submitter in request.POST):
             data = request.POST
         else:
-            return KykGetButton(action, self.prefix, label=_("Status"))
-        form = KykStatusForm(request, data=data, initial={'status': request.user.status}, prefix=self.prefix)
+            data = None
+        form = KykStatusForm(request, data=data, prefix=self.identifier)
         if form.is_valid():
             form.save()
             raise Redirection('.')
         else:
-            kwargs.update(form=form, submit_code=submit_code, submit_label=_("Set"), cancel_label=_("Cancel"))
+            kwargs.update(form=form, submitter=submitter, submit_label=_("Set status"))
         return form.kyk_TEMPLATE, kwargs
     
 
@@ -232,11 +231,10 @@ class KykStatusForm(forms.Form):
     status = forms.TypedChoiceField(coerce=int, label=_("Select status"), label_suffix=":", required=True)
     
     def __init__(self, request, data=None, *args, **kwargs):
-        user = request.user
         super().__init__(data=data, *args, **kwargs)
-        self.fields['status'].initial = user.status
+        self.fields['status'].initial = request.user.status
         self.request = request
-        self.fields['status'].choices = Status.choices(maximum=user.max_status)
+        self.fields['status'].choices = Status.choices(maximum=request.user.max_status)
 
     def save(self):
         """

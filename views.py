@@ -3,7 +3,7 @@ from django.http import Http404
 from django.shortcuts import render
 
 from .exceptions import Reload, ReloadAsGet
-from .models import Templates, KykModel
+from .models import Templates, Kyks, KykModel
 
 
 #======================================================================================================================
@@ -33,9 +33,9 @@ def KykView(arg=None, template=Templates.PAGE):
         def view(request, app, model, pk=None, **kwargs):
             kykModel = apps.get_model(app, model)
             return kyk_render(request, kykModel, pk=pk, template=template, **kwargs)
-    else: # arg is a regular kyk:
+    else: # arg is a regular kyk or the key pointing to a regular kyk in Kyks
         def view(request, **kwargs):
-            return safe_render(request, kyk=arg, template=template, **kwargs) 
+            return safe_render(request, kyk=Kyks.get(arg, arg), template=template, **kwargs) 
     return view
 
 

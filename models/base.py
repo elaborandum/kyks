@@ -79,12 +79,17 @@ def append2Kyks(name=None):
     if isinstance(name, str):
         # If the decorator was invoked as @append2Kyks('my_name')
         def decorating_name(cls):
-            Kyks[name] = cls()
+            kyk = cls()
+            kyk.identifier = name
+            Kyks[name] = kyk
             return cls
         return decorating_name 
     else:
         def decorating_class(cls):
-            Kyks[cls.__name__] = cls()
+            name = cls.__name__
+            kyk = cls()
+            kyk.identifier = name
+            Kyks[name] = kyk
             return cls
         if name is None: 
             # If the decorator was invoked as @append2Kyks()
@@ -108,7 +113,7 @@ class KykBase:
     # so KykBase does not make any reference to KykPanel.
 
     kyk_STATUS = Status.PUBLIC # Default required status to view the kyk
-    kyk_ACTION_STATUS = Status.STAFF # Default required status to act on the kyk
+    kyk_ACTION_STATUS = Status.PUBLIC # Default required status to act on the kyk
     kyk_TEMPLATE = Template("{{ kyk }}") 
     
     def kyk_in(self, request, template=None, **kwargs):
@@ -140,7 +145,6 @@ class Action(KykBase):
     """
 
     def __init__(self, status=None):
-        print("initializing", self, status)
         if status is not None:
             self.kyk_STATUS = status
 
@@ -236,15 +240,18 @@ class AuthorAction(Action):
 class KykSimple(KykBase):
     """
     A simple kyk that displays a template.
+    It is added to Kyks as Kyks[name].
     Additional attributes of the kyk can be provided as keyword arguments. 
     """
 
-    def __init__(self, template, status=None, **kwargs):
+    def __init__(self, name, template, status=None, **kwargs):
         self.kyk_TEMPLATE = template
         if status is not None:
             self.kyk_STATUS = status
-        for key, value in kwargs:
+        for key, value in kwargs.items():
             setattr(self, key, value)
+        self.identifier = name
+        Kyks[name] = self
         
     @classmethod
     def from_string(cls, template_string, **kwargs):
@@ -304,10 +311,9 @@ class KykList(KykBase):
         #order_by_fields = request.GET.get('order_by_fields', order_by_fields)
         filters = {**self.filters, **kwargs}
         kyk_list = self.query().filter(**filters) if filters else self.query()
+        order_by_fields = order_by_fields or self.order_by_fields
         if order_by_fields:
             kyk_list = kyk_list.order_by(*order_by_fields)
-        elif self.order_by is not None:
-            kyk_list = kyk_list.order_by(*self.order_by_fields)
         previous_index = index - size
         if previous_index < 0 < index:
             previous_index = 0
@@ -331,10 +337,10 @@ class KykList(KykBase):
         """
         Defines an action that adds a new kyk to the list.
         """
-        if not self.Model.kyk_add.kyk_allowed(request.user):
-            return ''
+        if not self.Model.kyk_create.kyk_allowed(request.user):
+            return 'Forbidden'
         kwargs = {**self.filters, **kwargs}
-        return self.Model.kyk_add(self, request, *args, **kwargs)
+        return self.Model.kyk_create.kyk_in(self, request, *args, **kwargs)
 
 
 #----------------------------------------------------------------------------------------------------------------------
