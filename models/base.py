@@ -170,12 +170,12 @@ class Action(KykBase):
         action = cls(*args, **kwargs)
         def decorator(obj):
             method = obj.kyk_in.method if isinstance(obj, Action) else obj
-            if is_classmethod(method):
+            if isinstance(method, classmethod):
                 def kyk_in(*args, **kwargs):
                     """
                     Return the template and context used to render the kyk with the kykin tag.
                     """
-                    return kyk_in.method(action._cls, *args, **kwargs)
+                    return kyk_in.method.__func__(action._cls, *args, **kwargs)
             else:       
                 def kyk_in(*args, **kwargs):
                     """
@@ -309,8 +309,7 @@ class KykList(KykBase):
         index = request.GET.get('index', index)
         size = request.GET.get('size', size)
         #order_by_fields = request.GET.get('order_by_fields', order_by_fields)
-        filters = {**self.filters, **kwargs}
-        kyk_list = self.query().filter(**filters) if filters else self.query()
+        kyk_list = self.query().filter(**self.filters) if self.filters else self.query()
         order_by_fields = order_by_fields or self.order_by_fields
         if order_by_fields:
             kyk_list = kyk_list.order_by(*order_by_fields)
@@ -323,24 +322,24 @@ class KykList(KykBase):
         else:
             kyk_list = kyk_list[index:]
             next_index = 0
-        return (self.kyk_TEMPLATE, 
-                dict(previous_index=previous_index,
+        kwargs.update(previous_index=previous_index,
                      next_index=next_index,
                      size=size,
                      kyk_list=kyk_list,
                      kyk_add=self.kyk_add,
-                     ),
-                )
+                     )    
+        return self.kyk_TEMPLATE, kwargs 
 
-    @Action.apply()
-    def kyk_add(self, request, *args, **kwargs):
-        """
-        Defines an action that adds a new kyk to the list.
-        """
-        if not self.Model.kyk_create.kyk_allowed(request.user):
-            return 'Forbidden'
-        kwargs = {**self.filters, **kwargs}
-        return self.Model.kyk_create.kyk_in(self, request, *args, **kwargs)
+    # @Action.apply()
+    # def kyk_add(self, request, *args, **kwargs):
+    #     """
+    #     Defines an action that adds a new kyk to the list.
+    #     """
+    #     if not self.Model.kyk_create.kyk_allowed(request.user):
+    #         return 'Forbidden'
+    #     return self.Model.kyk_create.kyk_in(self.Model, request, *args, **kwargs)
+    def kyk_add(self):
+        return self.Model.kyk_create
 
 
 #----------------------------------------------------------------------------------------------------------------------
@@ -369,7 +368,7 @@ class KykModel(KykBase, models.Model):
 
     def get_absolute_url(self):
         app, model = self._meta.label.split('.')
-        return reverse('kyks.kykmodel', 
+        return reverse('kykmodel', 
                        kwargs={'app': app, 'model': model, 'pk': self.pk},
                        )
 
@@ -403,7 +402,7 @@ class KykModel(KykBase, models.Model):
         """
         Returns a ModelForm class to create or edit the kyk.
         """
-        Form = forms.modelform_factory(cls)
+        Form = forms.modelform_factory(cls, exclude=[])
         Form.kyk_TEMPLATE = Templates.FORM
         return Form
         
