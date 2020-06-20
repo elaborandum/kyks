@@ -7,13 +7,15 @@
   {% endif %}
 {% endblock kyktitle %}
 {% if style >= Styles.SHOW %}
+  <div class="cell small-12">
   {% block kykshow %}
-    {% kykin kyk.kyk_delete %}
     {% kykin kyk.kyk_edit %}
     {% if not kyk.kyk_EDITING %}
+      {% kykin kyk.kyk_delete %}
       {{ kyk }}
     {% endif %}
   {% endblock kykshow %}
+  </div>
 {% elif style == Styles.ITEM %}
   {% block kykitem %}
     {% kykin kyk.kyk_delete %}

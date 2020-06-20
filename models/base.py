@@ -269,7 +269,8 @@ class KykList(KykBase):
     """
     kyk_TEMPLATE = Templates.LIST
 
-    def __init__(self, Model, query=None, *, order_by_fields=None, template=None, **kwargs):
+    def __init__(self, Model, query=None, *, initial=dict(), use_kwargs=False,
+                 order_by_fields=None, template=None, **kwargs):
         """
         Model : KykModel (or if query is given, then whatever model you want to add after the list).
             The model for which to make the query.
@@ -277,6 +278,10 @@ class KykList(KykBase):
         query : callable, optional
             Should return the query list. 
             The default is None, in which case Model.objects.all is used.
+        initial : dict, optional
+            Dict with initial values for the kyk_add action.
+        use_kwargs: bool, optional
+            Use the kwargs dict as the initial dict for kyk_add? Default: False. 
         order_by_fields : list, optional
             A list of field names by which to order the query list.
         template : template object or filename, optional
@@ -291,6 +296,7 @@ class KykList(KykBase):
         # query has to be callable! (Otherwise the instance would be reusing 
         # the same querylist over and over again.)
         self.query = Model.objects.all if query is None else query
+        self.initial = kwargs if use_kwargs else initial
         self.order_by_fields = order_by_fields
         if template is not None:
             self.kyk_TEMPLATE = template
@@ -328,20 +334,21 @@ class KykList(KykBase):
                      kyk_list=kyk_list,
                      kyk_add=self.kyk_add,
                      )    
+
+
         return self.kyk_TEMPLATE, kwargs 
 
-    # @Action.apply()
-    # def kyk_add(self, request, *args, **kwargs):
-    #     """
-    #     Defines an action that adds a new kyk to the list.
-    #     """
-    #     if not self.Model.kyk_create.kyk_allowed(request.user):
-    #         return 'Forbidden'
-    #     return self.Model.kyk_create.kyk_in(self.Model, request, *args, **kwargs)
+    #@Action.apply()
     def kyk_add(self):
-        return self.Model.kyk_create
-
-
+        """
+        Defines an action that adds a new kyk to the list.
+        """
+        def action(request):
+            if not self.Model.kyk_create.kyk_allowed(request.user):
+                return 'Forbidden'
+            return self.Model.kyk_create.kyk_in(request, **self.initial)
+        return action
+    
 #----------------------------------------------------------------------------------------------------------------------
 
 class KykModel(KykBase, models.Model):
@@ -446,7 +453,7 @@ class KykModel(KykBase, models.Model):
         form_context = {
             'form': form,
             'submitter': submitter, 
-            'submit_label': label,
+            'submit_label': "Save",
             'cancel_label': "Cancel",
             }
         if style is not None:
@@ -465,7 +472,8 @@ class KykModel(KykBase, models.Model):
         """
         Present and process a form to create a new kyk.
         """
-        return cls.kyk_process_form('Create', cls.Identifier, request, initial=kwargs)
+        return cls.kyk_process_form('Create', cls.Identifier, request, 
+            initial=kwargs, label="Create {}".format(cls.__name__))
 
     @Action.apply(Status.EDITOR)
     def kyk_edit(self, request, **kwargs):

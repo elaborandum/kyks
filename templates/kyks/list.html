@@ -1,7 +1,6 @@
 {% load i18n %}
 {% load kyks_tags %}
 
-<h5>Listing items</h5>
 <ul>  
   {% for kyk in kyk_list  %}
     <li>
@@ -13,19 +12,16 @@
         {% kykin kyk style=Styles.LINK  %}
       {% endif  %}
     </li>
-  {% endfor  %}
+  {% endfor %}
 </ul>
-<div>
-  <h5>Actions</h5>
-  <ul>
+  <div class="button-group">
     {% if previous_index >= 0  %}
-      <li><a class="button" href="./?index={{ previous_index }}&step={{ step }}">{% trans "Previous" %}</a></li>
+      <a class="button" href="./?index={{ previous_index }}&step={{ step }}">{% trans "Previous" %}</a>
     {% endif %}
-    {% if style >= Styles.SHOW %}
-      <li>{% kykin kyk_add %}</li>
+    {% if style >= Styles.QUOTE %}
+      {% kykin kyk_add %}
     {% endif %}
     {% if next_index %}
-      <li><a class="button" href="./?index={{ next_index }}&step={{ step }}">{% trans "Next" %}</a></li>
+      <a class="button" href="./?index={{ next_index }}&step={{ step }}">{% trans "Next" %}</a>
     {% endif %}
-  </ul>
-</div>
+  </div>
