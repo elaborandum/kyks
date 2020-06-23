@@ -3,7 +3,7 @@ from django.http import Http404
 from django.shortcuts import render
 
 from .exceptions import Reload, ReloadAsGet
-from .models import Templates, Kyks, KykModel
+from .models import Templates, Kyks, KykList, KykModel
 
 
 #======================================================================================================================
@@ -45,7 +45,7 @@ def kyk_render(request, kykModel, pk=None, **kwargs):
     """
     View that renders a specific kyk or a list of kyks from the given model.
     """
-    kyk = kykModel.kyk_list if pk is None else kykModel.objects.get(pk=pk)
+    kyk = KykList(kykModel) if pk is None else kykModel.objects.get(pk=pk)
     return safe_render(request, kyk, **kwargs)
 
 

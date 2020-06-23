@@ -10,7 +10,7 @@ from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy
 
 from ..exceptions import Redirection
-from ..utils import cached_classproperty, is_classmethod
+from ..utils import cached_classproperty
 
 
 #======================================================================================================================
@@ -334,8 +334,6 @@ class KykList(KykBase):
                      kyk_list=kyk_list,
                      kyk_add=self.kyk_add,
                      )    
-
-
         return self.kyk_TEMPLATE, kwargs 
 
     #@Action.apply()
@@ -380,7 +378,7 @@ class KykModel(KykBase, models.Model):
                        )
 
     @cached_classproperty
-    def Identifier(cls):
+    def kyk_Identifier(cls):
         """
 
         Returns
@@ -392,7 +390,7 @@ class KykModel(KykBase, models.Model):
         return cls._meta.label
         
     @cached_property
-    def identifier(self):
+    def kyk_identifier(self):
         """
 
         Returns
@@ -415,13 +413,10 @@ class KykModel(KykBase, models.Model):
         
     @classmethod
     def kyk_process_form(cls, action, identifier, request, *, instance=None, 
-            label=None, style=None, redirection='.', form_template=None, **kwargs):
+            label=None, style=None, redirection='.', FormClass = None,
+            form_template=None, set_flag=None, **kwargs):
         """
         Present and process a form to create a new kyk.
-        Sponsor can be a model instance or a string from which this method
-        was called, so that a page can include severall different kyk_add
-        buttons without form prefix conflicts (because each sponsor provides
-        a different prefix).
         """
         # The style keyword argument is added to remove it from kwargs
         # before passing them on to kyk_process_form
@@ -441,13 +436,12 @@ class KykModel(KykBase, models.Model):
         else:
             # Display a button that calls to action.
             return KykGetButton(action, identifier, label=label)
-        form = cls.kyk_Form(data=data, files=files, prefix=submitter, instance=instance, **kwargs)
+        if FormClass is None:
+            FormClass = cls.kyk_Form
+        form = FormClass(data=data, files=files, prefix=submitter, instance=instance, **kwargs)
         if posted and form.is_valid():
             kyk = form.save()
-            if redirection is None:
-                return kyk
-            else:
-                raise Redirection(redirection)
+            return kyk.kyk_post_save(request, action, redirection)
         if form_template is None:
             form_template = getattr(form, 'kyk_TEMPLATE', Templates.FORM)
         form_context = {
@@ -459,12 +453,23 @@ class KykModel(KykBase, models.Model):
         if style is not None:
             form_context['style'] = style
         # If an instance is being edited, then set its kyk_EDITING attribute 
-        try:
-            instance.kyk_EDITING = True
-        except AttributeError:
-            # This happens if no instance was provided, e.g. when creating a new kyk.
-            pass
+        if instance and set_flag:
+            setattr(instance, set_flag, True)
         return form_template, form_context
+
+
+    def kyk_post_save(self, request, action, redirection):
+        """
+        Method called by kyk_process_form if the form was valid
+        and the kyk was saved succesfully.
+        This can be used to set attributes on request.user or in the session.
+        Should return the kyk or redirect to another page.
+        """
+        if redirection is None:
+            return self
+        else:
+            raise Redirection(redirection)
+
 
     @Action.apply(Status.EDITOR)
     @classmethod
@@ -472,7 +477,7 @@ class KykModel(KykBase, models.Model):
         """
         Present and process a form to create a new kyk.
         """
-        return cls.kyk_process_form('Create', cls.Identifier, request, 
+        return cls.kyk_process_form('Create', cls.kyk_Identifier, request, 
             initial=kwargs, label="Create {}".format(cls.__name__))
 
     @Action.apply(Status.EDITOR)
@@ -480,24 +485,26 @@ class KykModel(KykBase, models.Model):
         """
         Present and process a form to edit this kyk.
         """
-        return self.kyk_process_form('Edit', self.identifier, request, 
-                                     instance=self, initial=kwargs)
+        return self.kyk_process_form('Edit', self.kyk_identifier, request, 
+            instance=self, initial=kwargs, set_flag='kyk_EDITING',
+            )
 
     @Action.apply(Status.EDITOR)
-    def kyk_delete(self, request, form_template=Templates.FORM, **kwargs):
+    def kyk_delete(self, request, form_template=Templates.FORM, redirection=None, **kwargs):
         """
         Present and process a form to delete this kyk.
         """
         action = 'Delete'
-        submitter = '{}-{}'.format(self.identifier, action)
-        if (request.method == 'GET') and (request.GET.get(action) == self.identifier):
+        submitter = '{}-{}'.format(self.kyk_identifier, action)
+        if (request.method == 'GET') and (request.GET.get(action) == self.kyk_identifier):
             alert = gettext_lazy("Are you sure you want to delete this item?")
             kwargs.update(alert=alert, submitter=submitter, submit_label="Confirm", 
                           cancel_label="Cancel")
             return form_template, kwargs
         elif (request.method == 'POST') and (submitter in request.POST):
-            redirection_page = '.'
             # Delete the kyk and its leaf.
+            if redirection is None:
+                redirection = self.kyk_get_superior() 
             try: 
                 self.delete()
             except IntegrityError:
@@ -505,12 +512,20 @@ class KykModel(KykBase, models.Model):
                     gettext_lazy("This item could not be deleted."),
                     )
             else: # try succeeded
-                raise Redirection(redirection_page)
+                raise Redirection(redirection)
         else:
             # Display a button that calls to action.
-            return KykGetButton(action, self.identifier)
+            return KykGetButton(action, self.kyk_identifier)
 
-        
+    def kyk_get_superior(self):
+        """
+        Return a kyk that can be considered as the object to which instances 
+        of this model belong. 
+        This is used by KykModel.kyk_delete for redirection upon deletion.
+        by default, a KykList(KykModel) is used as superior.         
+        """
+        return KykList(self.__class__)
+
 
 #======================================================================================================================
 

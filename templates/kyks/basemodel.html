@@ -18,12 +18,25 @@
   </div>
 {% elif style == Styles.ITEM %}
   {% block kykitem %}
-    {% kykin kyk.kyk_delete %}
-    {% kykin kyk.kyk_edit %}
-    {% if not kyk.kyk_EDITING %}
-      <a href="{{ kyk.get_absolute_url }}">{{ kyk }}</a>
-    {% endif %}
+    <div class="button-group">
+      {% kykin kyk.kyk_edit %}
+      {% if not kyk.kyk_EDITING %}
+        {% kykin kyk.kyk_delete %}
+        <a href="{{ kyk.get_absolute_url }}">{{ kyk }}</a>
+      {% endif %}
+    </div>
   {% endblock kykitem %}
+{% elif style == Styles.CELL %}
+  {% block kykcell %}
+    <td>{% kykin kyk.kyk_delete %}</td>
+    {% if kyk.kyk_EDITING %}
+      <td></td>
+      <td>{% kykin kyk.kyk_edit %}</td>
+    {% else %}
+      <td>{% kykin kyk.kyk_edit %}</td>
+      <td><a href="{{ kyk.get_absolute_url }}">{{ kyk }}</a><td>
+    {% endif %}
+  {% endblock kykcell %}
 {% elif style == Styles.BUTTON %}
   <a class="button" href="{{ kyk.get_absolute_url }}">{{ logo }}{{ kyk }}</a>
 {% elif style >= Styles.LINK %}

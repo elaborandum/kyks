@@ -41,6 +41,8 @@ class Choices:
         self.max_length = max_length
         expanded_args = [(arg[0][:max_length], arg[-2], arg[-1]) for arg in args]
         self._code = {name: code for code, name, label in expanded_args}
+        self.name2label = {name: label for code, name, label in expanded_args}
+        self.code2label = {code: label for code, name, label in expanded_args}
         if settings.DEBUG:
             if len(set(code for code, name, label in expanded_args)) != len(args):
                 raise KeyError
