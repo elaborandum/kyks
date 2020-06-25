@@ -40,9 +40,10 @@ class Choices:
     def __init__(self, max_length, *args, **kwargs):
         self.max_length = max_length
         expanded_args = [(arg[0][:max_length], arg[-2], arg[-1]) for arg in args]
-        self._code = {name: code for code, name, label in expanded_args}
+        self.name2code = {name: code for code, name, label in expanded_args}
         self.name2label = {name: label for code, name, label in expanded_args}
         self.code2label = {code: label for code, name, label in expanded_args}
+        self.code2name = {code: name for code, name, label in expanded_args}
         if settings.DEBUG:
             if len(set(code for code, name, label in expanded_args)) != len(args):
                 raise KeyError
@@ -52,7 +53,7 @@ class Choices:
             setattr(self, key, value)
         
     def __getattr__(self, name):
-        return self._code[name] if name in self._code else super().__getattribute__(name)
+        return self.name2code[name] if name in self.name2code else super().__getattribute__(name)
 
     def __iter__(self):
         return self.choices.__iter__()
@@ -63,10 +64,12 @@ class Choices:
     def ChoiceField(self, *args, **kwargs):
         return django_models.CharField(max_length=self.max_length, choices=self.choices, *args, **kwargs)
 
-    def __all_keys__(self):
+    def keys(self):
         """
         Return a list of all codes defined in the list of choices.
         """
+        # I could use self.name2code.choices() here, but I prefer to use a
+        # list generator so that the order from choices is preserved.
         return [code for code, label in self.choices]
 
 
