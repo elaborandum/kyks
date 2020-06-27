@@ -46,7 +46,7 @@ def kykin(context, kyk,  using=None, *args, **kwargs):
     If the user does not have enough status to access kyk, then ``None`` is returned,
     signaling to KykNode.render that no post-formatting should be applied. 
     """
-    print("kykin", kyk or '--', kwargs)
+    #print("kykin", kyk or '--', kwargs)
     try:
         request = context.request
     except AttributeError:

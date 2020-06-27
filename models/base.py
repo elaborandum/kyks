@@ -270,7 +270,7 @@ class KykList(KykBase):
     kyk_TEMPLATE = Templates.LIST
 
     def __init__(self, Model, query=None, *, initial=dict(), use_kwargs=False,
-                 order_by_fields=None, template=None, **kwargs):
+                 order_by_fields=[], template=None, **kwargs):
         """
         Model : KykModel (or if query is given, then whatever model you want to add after the list).
             The model for which to make the query.
@@ -302,7 +302,7 @@ class KykList(KykBase):
             self.kyk_TEMPLATE = template
         self.filters = kwargs
 
-    def kyk_in(self, request, index=0, size=20, order_by_fields=[], **kwargs):
+    def kyk_in(self, request, index=0, size=20, order_by_field=None, **kwargs):
         """
         List a set of kyks.
         The GET parameter ``index`` and ``size`` can be used to select
@@ -312,11 +312,11 @@ class KykList(KykBase):
         If no list of fields is supplied, the default ordering as defined in
         Model.Meta.ordering is used.
         """
-        index = request.GET.get('index', index)
-        size = request.GET.get('size', size)
+        index = int(request.GET.get('index', index))
+        size = int(request.GET.get('size', size))
         #order_by_fields = request.GET.get('order_by_fields', order_by_fields)
         kyk_list = self.query().filter(**self.filters) if self.filters else self.query()
-        order_by_fields = order_by_fields or self.order_by_fields
+        order_by_fields = [order_by_field, ] + self.order_by_fields if order_by_field else self.order_by_fields 
         if order_by_fields:
             kyk_list = kyk_list.order_by(*order_by_fields)
         previous_index = index - size
@@ -467,6 +467,8 @@ class KykModel(KykBase, models.Model):
         """
         if redirection is None:
             return self
+        elif redirection == 'new':
+            raise Redirection(self)
         else:
             raise Redirection(redirection)
 
