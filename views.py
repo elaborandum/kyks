@@ -8,7 +8,27 @@ from .models import Templates, Kyks, KykList, KykModel
 
 #======================================================================================================================
 
-def KykView(arg=None, template=Templates.PAGE):
+def KyksView(arg=None, template=Templates.PAGE):
+    """
+    Factory that creates views for regular kyks stored in Kyks.
+    If arg is None: the view will ask for a Kyks key and display the corresponding kyk.
+    Otherwise, arg is assumed to be a Kyks key and the view will render the corresponding kyk.
+    By default, the ``Templates.PAGE`` template will be used for rendering,
+    unless another template is provided.
+    """
+    if arg is None:
+        def view(request, key, **kwargs):
+            return safe_render(request, kyk=Kyks[key], template=template, **kwargs) 
+    else: # arg is a regular kyk or the key pointing to a regular kyk in Kyks
+        def view(request, **kwargs):
+            return safe_render(request, kyk=view.kyk, template=template, **kwargs) 
+        view.kyk = Kyks.get(arg, Kyks['home'])
+    return view
+
+
+#======================================================================================================================
+
+def KykModelView(arg=None, template=Templates.PAGE):
     """
     Factory that creates views for generic KykModel kyks.
     If arg is a KykModel: renders specific kyks or a list of kyks from that model.
@@ -34,8 +54,7 @@ def KykView(arg=None, template=Templates.PAGE):
             kykModel = apps.get_model(app, model)
             return kyk_render(request, kykModel, pk=pk, template=template, **kwargs)
     else: # arg is a regular kyk or the key pointing to a regular kyk in Kyks
-        def view(request, **kwargs):
-            return safe_render(request, kyk=Kyks.get(arg, arg), template=template, **kwargs) 
+        return KyksView(arg=arg, template=template)
     return view
 
 

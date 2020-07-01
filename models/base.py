@@ -64,7 +64,17 @@ Styles = ParameterDict(*settings.KYK_STYLES)
 
 
 class kykdict(dict):
-    pass
+
+    def __setitem__(self, key, val):
+        """
+        When including an item in Kyks, this method makes sure that the key
+        is stored on the item as item.kyk_Kyks_key.
+        """        
+        try:
+            val.kyk_Kyks_key = key
+        except AttributeError:
+            pass
+        super().__setitem__(key, val)
 
 Kyks = kykdict() # A dict used to store static kyks.
 # The kyks context processor makes it available in templates.
@@ -77,7 +87,7 @@ def append2Kyks(name=None):
     with the given name or cls.__name__ if no name is provided.
     """
     if isinstance(name, str):
-        # If the decorator was invoked as @append2Kyks('my_name')
+        # The decorator was invoked as @append2Kyks('my_name')
         def decorating_name(cls):
             kyk = cls()
             kyk.identifier = name
@@ -92,10 +102,10 @@ def append2Kyks(name=None):
             Kyks[name] = kyk
             return cls
         if name is None: 
-            # If the decorator was invoked as @append2Kyks()
+            # The decorator was invoked as @append2Kyks()
             return decorating_class
         else:
-            # If the decorator was invoked as @append2Kyks
+            # The decorator was invoked as @append2Kyks
             return decorating_class(cls=name)
 
 Kyks.append = append2Kyks 
@@ -134,7 +144,10 @@ class KykBase:
         """
         return user.status >= self.kyk_STATUS
 
-    
+    def get_absolute_url(self):
+        return reverse('Kyks', kwargs={'key': self.kyk_Kyks_key})
+
+
 #======================================================================================================================
 
 class Action(KykBase):
@@ -219,7 +232,7 @@ class AuthorAction(Action):
             self.AUTHOR_STATUS = author_status
         self.AUTHOR_FIELD = author_field
         super().__init__(status=status)
-
+        
     def kyk_allowed(self, user):
         """
         Check whether the user has sufficient status to access self (returns True or False).
@@ -333,6 +346,7 @@ class KykList(KykBase):
                      size=size,
                      kyk_list=kyk_list,
                      kyk_add=self.kyk_add,
+                     kyk=self,
                      )    
         return self.kyk_TEMPLATE, kwargs 
 

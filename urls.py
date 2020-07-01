@@ -11,12 +11,13 @@ that takes ``app``, ``model`` and ``pk`` as parameters.
 
 from django.urls import path
 
-from .views import KykView
+from .views import KykModelView, KyksView
 
 
 #----------------------------------------------------------------------------------------------------------------------
 
 urlpatterns = [
-    path('<str:app>/<str:model>/<int:pk>/', KykView(), name='kykmodel'),
+    path('<str:key>/', KyksView(), name='Kyks'),
+    path('<str:app>/<str:model>/<int:pk>/', KykModelView(), name='kykmodel'),
 ]
 
