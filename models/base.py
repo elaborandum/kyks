@@ -370,7 +370,6 @@ class KykModel(KykBase, models.Model):
 
     kyk_STATUS = Status.USER
     kyk_TEMPLATE = Templates.MODEL
-    #kyk_EDITING = False # Flag to indicate if the kyk is being edited.
 
     class Meta:
         abstract = True
@@ -428,7 +427,7 @@ class KykModel(KykBase, models.Model):
     @classmethod
     def kyk_process_form(cls, action, identifier, request, *, instance=None, 
             label=None, style=None, redirection='.', FormClass = None,
-            form_template=None, stage=0, **kwargs):
+            stage=0, **kwargs):
         """
         Present and process a form to create a new kyk.
         """
@@ -463,8 +462,7 @@ class KykModel(KykBase, models.Model):
         if posted and form.is_valid():
             kyk = form.save()
             return kyk.kyk_post_save(request, action, redirection)
-        if form_template is None:
-            form_template = getattr(form, 'kyk_TEMPLATE', Templates.FORM)
+        form_template = getattr(form, 'kyk_TEMPLATE', Templates.FORM)
         form_context = {
             'form': form,
             'submitter': submitter, 
@@ -510,41 +508,52 @@ class KykModel(KykBase, models.Model):
             )
 
     @Action.apply(Status.EDITOR)
-    def kyk_delete(self, request, form_template=Templates.FORM, redirection=None, **kwargs):
+    def kyk_delete(self, request, form_template=Templates.FORM, redirection=None, 
+                   stage=0, **kwargs):
         """
         Present and process a form to delete this kyk.
         """
         action = 'Delete'
         submitter = '{}-{}'.format(self.kyk_identifier, action)
+        disabled = False
         if (request.method == 'GET') and (request.GET.get(action) == self.kyk_identifier):
-            alert = gettext_lazy("Are you sure you want to delete this item?")
-            kwargs.update(alert=alert, submitter=submitter, submit_label="Confirm", 
-                          cancel_label="Cancel")
-            return form_template, kwargs
+            if stage == 1:
+                disabled = True
+            else:
+                # Here we are either in stage 0 (i.e. no stages) or in stage 2
+                alert = gettext_lazy("Are you sure you want to delete this item?")
+                kwargs.update(alert=alert, submitter=submitter, submit_label="Confirm", 
+                              cancel_label="Cancel")
+                return form_template, kwargs
         elif (request.method == 'POST') and (submitter in request.POST):
-            # Delete the kyk and its leaf.
-            if redirection is None:
-                redirection = self.kyk_get_superior() 
-            try: 
-                self.delete()
-            except IntegrityError:
-                return html.format_html('<p><span class="alert label">{}</span></p>', 
-                    gettext_lazy("This item could not be deleted."),
-                    )
-            else: # try succeeded
-                raise Redirection(redirection)
-        else:
+            if stage == 1:
+                disabled = True
+            else:
+                # Delete the kyk and its leaf.
+                if redirection is None:
+                    redirection = self.kyk_get_superior() 
+                try: 
+                    self.delete()
+                except IntegrityError:
+                    return html.format_html('<p><span class="alert label">{}</span></p>', 
+                        gettext_lazy("This item could not be deleted."),
+                        )
+                else: # try succeeded
+                    raise Redirection(redirection)
+        if stage <= 1:
             # Display a button that calls to action.
-            return KykGetButton(action, self.kyk_identifier)
+            return KykGetButton(action, self.kyk_identifier, disabled=disabled)
+        else: # Here we are in stage 2 but without any actions to process.
+            return ''
 
     def kyk_get_superior(self):
         """
         Return a kyk that can be considered as the object to which instances 
         of this model belong. 
         This is used by KykModel.kyk_delete for redirection upon deletion.
-        by default, a KykList(KykModel) is used as superior.         
+        by default, a Kyks['home'] is used as superior.         
         """
-        return KykList(self.__class__)
+        return Kyks['home']
 
 
 #======================================================================================================================
