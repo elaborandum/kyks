@@ -5,6 +5,11 @@
     {{ form.media }}
     {{ form.as_p }}
   {% endif %}
+  {% if formset %}
+    <table>
+      {{ formset }}
+    </table>
+  {% endif %}
   {% for extra_form in forms %}
       {{ extra_form.media }}
       {{ extra_form.as_p }}

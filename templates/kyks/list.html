@@ -6,12 +6,16 @@
       <a class="button" href="./?index={{ previous_index }}&step={{ step }}">{% trans "Previous" %}</a>
     {% endif %}
     {% if style >= Styles.QUOTE %}
-      {% kykin kyk_add %}
+      {% kykin kyk_add stage=1 %}
     {% endif %}
     {% if next_index %}
       <a class="button" href="./?index={{ next_index }}&step={{ step }}">{% trans "Next" %}</a>
     {% endif %}
   </div>
+  <div>  
+   {% kykin kyk_add stage=2 %}
+  </div>
+
 <ul>  
   {% for kyk in kyk_list  %}
     <li>
