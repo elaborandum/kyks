@@ -425,7 +425,7 @@ class KykModel(KykBase, models.Model):
         return Form
         
     @classmethod
-    def kyk_process_form(cls, action, identifier, request, *, instance=None, 
+    def kyk_process_form(cls, action, identifier, request, *, 
             label=None, style=None, redirection='.', FormClass = None,
             stage=0, **kwargs):
         """
@@ -458,7 +458,7 @@ class KykModel(KykBase, models.Model):
         # Here we are either in stage 0 (i.e. no stages) or in stage 2
         if FormClass is None:
             FormClass = cls.kyk_Form
-        form = FormClass(data=data, files=files, prefix=submitter, instance=instance, **kwargs)
+        form = FormClass(data=data, files=files, prefix=submitter, **kwargs)
         if posted and form.is_valid():
             kyk = form.save()
             return kyk.kyk_post_save(request, action, redirection)
@@ -491,11 +491,13 @@ class KykModel(KykBase, models.Model):
 
     @Action.apply(Status.EDITOR)
     @classmethod
-    def kyk_create(cls, request, stage=0, **kwargs):
+    def kyk_create(cls, request, identifier=None, stage=0, **kwargs):
         """
         Present and process a form to create a new kyk.
         """
-        return cls.kyk_process_form('Create', cls.kyk_Identifier, request, 
+        if identifier is None:
+            identifier = cls.kyk_Identifier
+        return cls.kyk_process_form('Create', identifier, request, 
             initial=kwargs, label=f"Create {cls.__name__}", stage=stage)
 
     @Action.apply(Status.EDITOR)
