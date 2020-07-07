@@ -6,43 +6,58 @@
      {% endwith %}
   {% endif %}
 {% endblock kyktitle %}
-{% if style >= Styles.SHOW %}
-  {% block kykshow %}
-    <div class="cell">
-      {% kykin kyk.kyk_edit %}
-      {% if not kyk.kyk_EDITING %}
-        {% kykin kyk.kyk_delete %}
-        {{ kyk }}
-      {% endif %}
-    </div>
-  {% endblock kykshow %}
-{% elif style == Styles.ITEM %}
-  {% block kykitem %}
-    <div class="button-group">
-      {% kykin kyk.kyk_edit %}
-      {% if not kyk.kyk_EDITING %}
-        {% kykin kyk.kyk_delete %}
-        <a href="{{ kyk.get_absolute_url }}">{{ kyk }}</a>
-      {% endif %}
-    </div>
-  {% endblock kykitem %}
-{% elif style == Styles.CELL %}
-  {% block kykcell %}
-    <td>{% kykin kyk.kyk_delete %}</td>
-    {% if kyk.kyk_EDITING %}
-      <td></td>
-      <td>{% kykin kyk.kyk_edit %}</td>
-    {% else %}
-      <td>{% kykin kyk.kyk_edit %}</td>
-      <td><a href="{{ kyk.get_absolute_url }}">{{ kyk }}</a><td>
-    {% endif %}
-  {% endblock kykcell %}
-{% elif style == Styles.BUTTON %}
-  <a class="button" href="{{ kyk.get_absolute_url }}">{{ logo }}{{ kyk }}</a>
-{% elif style >= Styles.LINK %}
-  <a href="{{ kyk.get_absolute_url }}">{{ kyk }}</a>
-{% else %}
+{% if style <= Styles.TEXT %}
   {% block kyktext %}
     {{ kyk }}
   {% endblock kyktext %}
+{% elif style <= Styles.LINK %}
+  <a href="{{ kyk.get_absolute_url }}">{{ kyk }}</a>
+{% elif style <= Styles.BUTTON %}
+  <a class="button" href="{{ kyk.get_absolute_url }}">{{ logo }}{{ kyk }}</a>
+{% elif style <= Styles.CELL %}
+  {% block kykcell %}
+    {% kykin kyk.kyk_edit stage=2 as editing %}
+      {% if editing %}
+        <td>{{ editing }}</td>
+      {% else %}
+        <td><a href="{{ kyk.get_absolute_url }}">{{ kyk }}</a><td>
+      {% endif %}
+    {% endkyk %}
+    <td>{% kykin kyk.kyk_edit stage=1 %}</td>
+    <td>{% kykin kyk.kyk_delete %}</td>
+  {% endblock kykcell %}
+{% elif style <= Styles.ITEM %}
+  {% block kykitem %}
+    {% kykin kyk.kyk_edit stage=2 as editing %}
+      {% if editing %}
+        {{ editing }}
+      {% else %}
+        <a href="{{ kyk.get_absolute_url }}">{{ kyk }}</a>
+      {% endif %}
+    {% endkyk %}
+    <div class="button-group">
+      {% kykin kyk.kyk_edit stage=1 %}
+      {% kykin kyk.kyk_delete %}
+    </div>
+  {% endblock kykitem %}
+{% elif style <= Styles.QUOTE %}
+  {% block kykquote %}
+    {{ kyk }}
+  {% endblock kykquote %}
+{% else %}
+  {% block kykshow %}
+    <div class="cell">
+      {% kykin kyk.kyk_edit stage=2 as editing %}
+        {% if editing %}
+          {{ editing }}
+        {% else %}
+          {{ kyk }}
+        {% endif %}
+      {% endkyk %}
+      <div class="button-group">
+        {% kykin kyk.kyk_edit stage=1 %}
+        {% kykin kyk.kyk_delete %}
+      </div>
+    </div>
+  {% endblock kykshow %}
 {% endif %}

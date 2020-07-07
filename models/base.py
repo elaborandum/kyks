@@ -413,7 +413,7 @@ class KykModel(KykBase, models.Model):
             with the same result if the page is loaded again after an action.
 
         """
-        return '{}-{}'.format(self._meta.label_lower, self.pk) 
+        return f'{self.kyk_Identifier.lower()}-{self.pk}'
 
     @cached_classproperty
     def kyk_Form(cls):
@@ -454,7 +454,7 @@ class KykModel(KykBase, models.Model):
         if stage == 1:
             # If we arrice here in stage 1, then we should leave the rest of the
             # processing for stage 2 and send here a disabled button
-            return KykGetButton(action, identifier, label=label, disabled=True)
+            return KykGetButton(action, identifier, label=label, design='disabled')
         # Here we are either in stage 0 (i.e. no stages) or in stage 2
         if FormClass is None:
             FormClass = cls.kyk_Form
@@ -511,16 +511,16 @@ class KykModel(KykBase, models.Model):
 
     @Action.apply(Status.EDITOR)
     def kyk_delete(self, request, form_template=Templates.FORM, redirection=None, 
-                   stage=0, **kwargs):
+                   stage=0, design='', **kwargs):
         """
         Present and process a form to delete this kyk.
         """
         action = 'Delete'
         submitter = '{}-{}'.format(self.kyk_identifier, action)
-        disabled = False
+        button_design = ''
         if (request.method == 'GET') and (request.GET.get(action) == self.kyk_identifier):
             if stage == 1:
-                disabled = True
+                button_design = 'disabled'
             else:
                 # Here we are either in stage 0 (i.e. no stages) or in stage 2
                 alert = gettext_lazy("Are you sure you want to delete this item?")
@@ -529,7 +529,7 @@ class KykModel(KykBase, models.Model):
                 return form_template, kwargs
         elif (request.method == 'POST') and (submitter in request.POST):
             if stage == 1:
-                disabled = True
+                button_design = 'disabled'
             else:
                 # Delete the kyk and its leaf.
                 if redirection is None:
@@ -544,7 +544,7 @@ class KykModel(KykBase, models.Model):
                     raise Redirection(redirection)
         if stage <= 1:
             # Display a button that calls to action.
-            return KykGetButton(action, self.kyk_identifier, disabled=disabled)
+            return KykGetButton(action, self.kyk_identifier, design=f'{design} {button_design}')
         else: # Here we are in stage 2 but without any actions to process.
             return ''
 
@@ -566,18 +566,17 @@ def url_with_get(action, code, *, url='.'):
 
 #----------------------------------------------------------------------------------------------------------------------
 
-def KykGetButton(action, code, label=None, *, url='.', disabled=False):
+def KykGetButton(action, code, label=None, *, url='.', design=''):
     """
     Creates a string that displays a GET button with a given label that produces a GET request with query ?action=code.
     This can be used as the return result for kyk actions.
     """
-    disabled = ' disabled' if disabled else ''
-    template_string = '<a class="button{}" href="{}">{}</a>'
+    template_string = '<a class="button {}" href="{}">{}</a>'
     complete_url = url_with_get(action, code, url=url)
     if label is None:
         label = gettext_lazy(action.replace('_', ' ').title()) 
         # gettext_lazy translates the string
-    return html.format_html(template_string, disabled, complete_url, label)
+    return html.format_html(template_string, design, complete_url, label)
 
 
 #======================================================================================================================

@@ -6,9 +6,13 @@ from django.conf import settings
 from django.db import models as django_models
 from django.template import Template
 from django.template.loader import get_template
-
+#from django.utils.safestring import mark_safe
 
 #======================================================================================================================
+
+#SEPARATOR = mark_safe('&#9472;') # HTML encoding for the horizontal unicode box drawing character 
+# &#9473; is similar but fatter.
+SEPARATOR = ''
 
 class Choices:
     """
@@ -20,6 +24,8 @@ class Choices:
     In the database, the choices will be stored as a code that is equal to name[:max_length].
     Alternatively, one can provide a (code, name, label) tuple to specify the code explicitly,
     e.g. to avoid duplicate codes or to use more meaningfull codes.
+    In order to display separators between choices, insert a line with a code
+    made up of minus signs '------------' (length >= max_length).
     
     Usage:
 
@@ -28,6 +34,7 @@ class Choices:
                 ('ACTIVE', _("Active")),
                 ('URGENT', _("Urgent")),
                 ('DONE', _("Done")),
+                ('----', SEPARATOR),
                 ('IACC', 'INACCURATE', _('Inaccurate')),
             )
 
@@ -39,15 +46,22 @@ class Choices:
 
     def __init__(self, max_length, *args, **kwargs):
         self.max_length = max_length
+        separator = '-'*max_length
         expanded_args = [(arg[0][:max_length], arg[-2], arg[-1]) for arg in args]
         self.name2code = {name: code for code, name, label in expanded_args}
         self.name2label = {name: label for code, name, label in expanded_args}
         self.code2label = {code: label for code, name, label in expanded_args}
         self.code2name = {code: name for code, name, label in expanded_args}
         if settings.DEBUG:
-            if len(set(code for code, name, label in expanded_args)) != len(args):
+            # Check for repeated codes. The separator code may appear several times
+            # but other codes only once.
+            if len(set(code for code, name, label in expanded_args if code != separator)
+                   ) + len(list(code for code, name, label in expanded_args if code == separator)
+                           ) != len(args):
                 raise KeyError
-        self.choices = [(code, label) for code, name, label in expanded_args]
+        self.choices = [((None, SEPARATOR) if code == separator else (code, label))
+                        for code, name, label in expanded_args]
+        self.keys =  [code for code, name, label in expanded_args if code != separator]
         # Set optional arguments.
         for key, value in kwargs.items():
             setattr(self, key, value)
@@ -63,14 +77,6 @@ class Choices:
 
     def ChoiceField(self, *args, **kwargs):
         return django_models.CharField(max_length=self.max_length, choices=self.choices, *args, **kwargs)
-
-    def keys(self):
-        """
-        Return a list of all codes defined in the list of choices.
-        """
-        # I could use self.name2code.choices() here, but I prefer to use a
-        # list generator so that the order from choices is preserved.
-        return [code for code, label in self.choices]
 
 
 #======================================================================================================================

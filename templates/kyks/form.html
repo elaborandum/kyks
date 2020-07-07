@@ -1,5 +1,7 @@
 {% load i18n %}
-<form action="{{ destination_url|default:'.'}}" method="post" {% if file_upload %} enctype="multipart/form-data" {% endif %}>
+<form action="{{ destination_url|default:'.'}}"
+      method="{% if method %}{{ method }}{% else %}post{% endif %}"
+      {% if file_upload %} enctype="multipart/form-data" {% endif %}>
   {% csrf_token %}
   {% if form %}
     {{ form.media }}
