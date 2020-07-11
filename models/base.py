@@ -148,6 +148,32 @@ class KykBase:
         return reverse('Kyks', kwargs={'key': self.kyk_Kyks_key})
 
 
+#----------------------------------------------------------------------------------------------------------------------
+
+class KykSimple(KykBase):
+    """
+    A simple kyk that displays a template.
+    It is added to Kyks as Kyks[name].
+    Additional attributes of the kyk can be provided as keyword arguments. 
+    """
+
+    def __init__(self, name, template, status=None, **kwargs):
+        self.kyk_TEMPLATE = template
+        if status is not None:
+            self.kyk_STATUS = status
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+        self.identifier = name
+        Kyks[name] = self
+        
+    @classmethod
+    def from_string(cls, template_string, **kwargs):
+        """
+        Creates a simple kyk from a template provided as a text string.
+        """
+        return cls(Template(template_string), **kwargs)
+
+
 #======================================================================================================================
 
 class Action(KykBase):
@@ -249,32 +275,6 @@ class AuthorAction(Action):
  
         
 #======================================================================================================================
-
-class KykSimple(KykBase):
-    """
-    A simple kyk that displays a template.
-    It is added to Kyks as Kyks[name].
-    Additional attributes of the kyk can be provided as keyword arguments. 
-    """
-
-    def __init__(self, name, template, status=None, **kwargs):
-        self.kyk_TEMPLATE = template
-        if status is not None:
-            self.kyk_STATUS = status
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-        self.identifier = name
-        Kyks[name] = self
-        
-    @classmethod
-    def from_string(cls, template_string, **kwargs):
-        """
-        Creates a simple kyk from a template provided as a text string.
-        """
-        return cls(Template(template_string), **kwargs)
-
-
-#----------------------------------------------------------------------------------------------------------------------
 
 class KykList(KykBase):
     """
