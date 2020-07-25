@@ -1,7 +1,8 @@
 from .base import (ParameterDict, Status, Styles, Templates, Kyks, 
-                   Action, AuthorAction, KykBase, KykList, KykSimple, KykModel, 
-                   KykGetButton, KykPostButton,
+                   KykBase, KykList, KykSimple, KykGetButton, KykPostButton,
                    )
+from .actions import simple_action, Action, ButtonAction, AuthorAction
+from .kykmodel import KykModel
 from .users import AbstractKykUser, KykUser, Users, set_user_status, login, logout
 
 Kyks['users'] = Users()

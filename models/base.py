@@ -1,16 +1,9 @@
-#from itertools import chain, takewhile
-
 from django.conf import settings
-from django.db import models, IntegrityError
-from django import forms
 from django.template import Template
 from django.urls import reverse
 from django.utils import html
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy
-
-from ..exceptions import Redirection
-from ..utils import cached_classproperty
 
 
 #======================================================================================================================
@@ -111,7 +104,6 @@ def append2Kyks(name=None):
 Kyks.append = append2Kyks 
 # Kyks.append was not defined as a method on kykdict in order to be able to use it as a decorator
 
-
 #======================================================================================================================
 
 class KykBase:
@@ -163,7 +155,7 @@ class KykSimple(KykBase):
             self.kyk_STATUS = status
         for key, value in kwargs.items():
             setattr(self, key, value)
-        self.identifier = name
+        self.kyk_identifier = name
         Kyks[name] = self
         
     @classmethod
@@ -174,106 +166,6 @@ class KykSimple(KykBase):
         return cls(Template(template_string), **kwargs)
 
 
-#======================================================================================================================
-
-class Action(KykBase):
-    """
-    Action to be used in the Activate decorator.
-    Sets the allowed status to the given status value or if that is None,
-    then to cls.kyk_ACTION_STATUS where cls is the class where the method is decorated. 
-    """
-
-    def __init__(self, status=None):
-        if status is not None:
-            self.kyk_STATUS = status
-
-    @cached_property # This will be overriden if status is provided upon initialization.
-    #@property # Does not work with @property because property.__set__ is messed up.
-    def kyk_STATUS(self):
-        return self._cls.kyk_ACTION_STATUS
-
-    def __get__(self, instance, cls=None):
-        self._instance, self._cls = instance, cls
-        return self
-
-    @classmethod
-    def apply(cls, *args, **kwargs):
-        """
-        Generates a decorator that converts an action method into an action kyk of this class.
-        The method has to be invoked on the class, otherwise it will not work as a decorator::
-            
-            @Action.apply(Status.STAFF)
-            def my_action_method(self, request, *args, **kwargs):
-            
-        """
-        action = cls(*args, **kwargs)
-        def decorator(obj):
-            method = obj.kyk_in.method if isinstance(obj, Action) else obj
-            if isinstance(method, classmethod):
-                def kyk_in(*args, **kwargs):
-                    """
-                    Return the template and context used to render the kyk with the kykin tag.
-                    """
-                    return kyk_in.method.__func__(action._cls, *args, **kwargs)
-            else:       
-                def kyk_in(*args, **kwargs):
-                    """
-                    Return the template and context used to render the kyk with the kykin tag.
-                    """
-                    return kyk_in.method(action._instance, *args, **kwargs)
-            kyk_in.method = method
-            action.kyk_in = kyk_in
-            return action
-        return decorator
-  
-
-#----------------------------------------------------------------------------------------------------------------------
-    
-class AuthorAction(Action):
-    """
-    An action decorator that allows a user to bypass previous restrictions
-    if he is the author of a kyk and has suficient status.
-    
-        @AuthorAction(Status.USER, author_field='owner').apply()
-
-    This gives access to the method to the user who is the author of the kyk
-    and has a status equal to or higher than ``Status.USER``.
-
-    The default author status is ``Status.USER``. 
-    This can be modified by redefining the ``AUTHOR_STATUS`` on the class
-    or by passing in an additional ``author_status`` keyword upon initialization.
-
-    The default author field on the kyk is ``author``. This can be modified 
-    by passing in an additional ``author_field`` keyword upon initialization.
-
-    One can also define a minimum status level for users other than the author.
-    Otherwise the kyk_ACTION_STATUS value of the containing class will be used.
-
-    """
-
-    AUTHOR_STATUS = Status.USER
-
-    def __init__(self, author_status=None, status=None, *, author_field='author'):
-        if author_status is not None:
-            self.AUTHOR_STATUS = author_status
-        self.AUTHOR_FIELD = author_field
-        super().__init__(status=status)
-        
-    def kyk_allowed(self, user):
-        """
-        Check whether the user has sufficient status to access self (returns True or False).
-        """
-        required_status = self.kyk_STATUS
-        try:
-            author = getattr(self._intance, self.AUTHOR_FIELD)
-        except AttributeError:
-            pass
-        else:
-            if user == author:
-                required_status = self.AUTHOR_STATUS
-        return user.status >= required_status
- 
-        
 #======================================================================================================================
 
 class KykList(KykBase):
@@ -360,202 +252,6 @@ class KykList(KykBase):
                 return 'Forbidden'
             return self.Model.kyk_create.kyk_in(request, stage=stage, **self.initial)
         return action
-    
-#----------------------------------------------------------------------------------------------------------------------
-
-class KykModel(KykBase, models.Model):
-    """
-    An abstract Django model that implements the KykBase attributes.
-    """
-
-    kyk_STATUS = Status.USER
-    kyk_TEMPLATE = Templates.MODEL
-
-    class Meta:
-        abstract = True
-
-    def get_field_items(self, field_names=None, *args, **kwargs):
-        """
-        Returns a list of (field name, field value) pairs for the fields
-        listed in field_names, or for all fields if no names were given.
-        """
-        if field_names is None:
-            field_names = self._meta.get_fields(*args, **kwargs)
-        return [(field.verbose_name , getattr(self, field.name)) 
-                for field in field_names]
-
-    def get_absolute_url(self):
-        app, model = self._meta.label.split('.')
-        return reverse('kykmodel', 
-                       kwargs={'app': app, 'model': model, 'pk': self.pk},
-                       )
-
-    @cached_classproperty
-    def kyk_Identifier(cls):
-        """
-
-        Returns
-        -------
-        string
-            Should identify the model class unambiguously and consistently
-            with the same result if the page is loaded again after an action.
-        """
-        return cls._meta.label
-        
-    @cached_property
-    def kyk_identifier(self):
-        """
-
-        Returns
-        -------
-        string
-            Should identify the model instance unambiguously and consistently
-            with the same result if the page is loaded again after an action.
-
-        """
-        return f'{self.kyk_Identifier.lower()}-{self.pk}'
-
-    @cached_classproperty
-    def kyk_Form(cls):
-        """
-        Returns a ModelForm class to create or edit the kyk.
-        """
-        Form = forms.modelform_factory(cls, exclude=[])
-        Form.kyk_TEMPLATE = Templates.FORM
-        return Form
-        
-    @classmethod
-    def kyk_process_form(cls, action, identifier, request, *, 
-            label=None, style=None, redirection='.', FormClass = None,
-            stage=0, **kwargs):
-        """
-        Present and process a form to create a new kyk.
-        """
-        # The style keyword argument is added to remove it from kwargs
-        # before passing them on to kyk_process_form
-        if label is None:
-            label = action.title()
-        submitter = '{}-{}'.format(identifier, action)
-        if (request.method == 'GET') and (request.GET.get(action) == identifier):
-            # Present an unbound form to create the kyk.
-            posted = False
-            data = files = None
-        elif (request.method == 'POST') and (submitter in request.POST):
-            # Process a bound form to create the kyk.
-            # If it does not validate, then present it again.
-            posted = True
-            data = request.POST
-            files = request.FILES
-        elif stage <= 1:
-            # Display a button that calls to action.
-            return KykGetButton(action, identifier, label=label)
-        else: # Here we are in stage 2 but without any actions to process.
-            return ''
-        if stage == 1:
-            # If we arrice here in stage 1, then we should leave the rest of the
-            # processing for stage 2 and send here a disabled button
-            return KykGetButton(action, identifier, label=label, design='disabled')
-        # Here we are either in stage 0 (i.e. no stages) or in stage 2
-        if FormClass is None:
-            FormClass = cls.kyk_Form
-        form = FormClass(data=data, files=files, prefix=submitter, **kwargs)
-        if posted and form.is_valid():
-            kyk = form.save()
-            return kyk.kyk_post_save(request, action, redirection)
-        form_template = getattr(form, 'kyk_TEMPLATE', Templates.FORM)
-        form_context = {
-            'form': form,
-            'submitter': submitter, 
-            'submit_label': "Save",
-            'cancel_label': "Cancel",
-            }
-        if style is not None:
-            form_context['style'] = style
-        return form_template, form_context
-
-
-    def kyk_post_save(self, request, action, redirection):
-        """
-        Method called by kyk_process_form if the form was valid
-        and the kyk was saved succesfully.
-        This can be used to set attributes on request.user or in the session.
-        Should return the kyk or redirect to another page.
-        """
-        if redirection is None:
-            return self
-        elif redirection == 'new':
-            raise Redirection(self)
-        else:
-            raise Redirection(redirection)
-
-
-    @Action.apply(Status.EDITOR)
-    @classmethod
-    def kyk_create(cls, request, identifier=None, stage=0, **kwargs):
-        """
-        Present and process a form to create a new kyk.
-        """
-        if identifier is None:
-            identifier = cls.kyk_Identifier
-        return cls.kyk_process_form('Create', identifier, request, 
-            initial=kwargs, label=f"Create {cls.__name__}", stage=stage)
-
-    @Action.apply(Status.EDITOR)
-    def kyk_edit(self, request, stage=0, **kwargs):
-        """
-        Present and process a form to edit this kyk.
-        """
-        return self.kyk_process_form('Edit', self.kyk_identifier, request, 
-            instance=self, initial=kwargs, stage=stage,
-            )
-
-    @Action.apply(Status.EDITOR)
-    def kyk_delete(self, request, form_template=Templates.FORM, redirection=None, 
-                   stage=0, design='', **kwargs):
-        """
-        Present and process a form to delete this kyk.
-        """
-        action = 'Delete'
-        submitter = '{}-{}'.format(self.kyk_identifier, action)
-        button_design = ''
-        if (request.method == 'GET') and (request.GET.get(action) == self.kyk_identifier):
-            if stage == 1:
-                button_design = 'disabled'
-            else:
-                # Here we are either in stage 0 (i.e. no stages) or in stage 2
-                alert = gettext_lazy("Are you sure you want to delete this item?")
-                kwargs.update(alert=alert, submitter=submitter, submit_label="Confirm", 
-                              cancel_label="Cancel")
-                return form_template, kwargs
-        elif (request.method == 'POST') and (submitter in request.POST):
-            if stage == 1:
-                button_design = 'disabled'
-            else:
-                # Delete the kyk and its leaf.
-                if redirection is None:
-                    redirection = self.kyk_get_superior() 
-                try: 
-                    self.delete()
-                except IntegrityError:
-                    return html.format_html('<p><span class="alert label">{}</span></p>', 
-                        gettext_lazy("This item could not be deleted."),
-                        )
-                else: # try succeeded
-                    raise Redirection(redirection)
-        if stage <= 1:
-            # Display a button that calls to action.
-            return KykGetButton(action, self.kyk_identifier, design=f'{design} {button_design}')
-        else: # Here we are in stage 2 but without any actions to process.
-            return ''
-
-    def kyk_get_superior(self):
-        """
-        Return a kyk that can be considered as the object to which instances 
-        of this model belong. 
-        This is used by KykModel.kyk_delete for redirection upon deletion.
-        by default, a Kyks['home'] is used as superior.         
-        """
-        return Kyks['home']
 
 
 #======================================================================================================================
@@ -581,12 +277,12 @@ def KykGetButton(action, code, label=None, *, url='.', design=''):
 
 #======================================================================================================================
 
-def KykPostButton(code, label, *, url='.', cancel_label='', **kwargs):
+def KykPostButton(submitter, label, *, url='.', cancel_label='', **kwargs):
     """
     Displays a POST button with a given label that produces a POST request with code as submit code.
     This can be used as the return result for kyk actions.
     """
-    kwargs.update(submit_code=code, submit_label=label, destination_url=url, cancel_label=cancel_label)
+    kwargs.update(submitter=submitter, submit_label=label, destination_url=url, cancel_label=cancel_label)
     return Templates.FORM, kwargs
 
 

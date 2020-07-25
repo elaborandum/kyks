@@ -129,6 +129,16 @@ class instantiate:
 
 #----------------------------------------------------------------------------------------------------------------------
 
+def do_not_call_in_templates(method):
+    """
+    Decorator that sets a flag on method so that they are not called in templates.
+    """
+    method.do_not_call_in_templates = True
+    return method
+
+
+#----------------------------------------------------------------------------------------------------------------------
+
 def is_classmethod(method):
     """
     Is method a classmethod?

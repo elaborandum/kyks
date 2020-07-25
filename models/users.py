@@ -6,8 +6,8 @@ from django.utils.translation import gettext_lazy as _
 from ..exceptions import Redirection
 from ..utils import cached_classproperty
 
-from .base import Status, Templates, Kyks, KykBase, Action, KykGetButton
-
+from .base import Status, Templates, Kyks, KykBase, KykGetButton
+from .actions import Action
 
 #======================================================================================================================
 
