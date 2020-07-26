@@ -12,13 +12,9 @@ def simple_action(status):
     Generates a decorator that converts a method into an action,
     accessible to users with a status higher than or equal to the given value.
     """
-    def kyk_allowed(user):
-        """
-        Check whether the user has sufficient status to access self (returns True or False).
-        """
-        return user.status >= status
     def decorator(method):
-        method.kyk_allowed = kyk_allowed
+        method.kyk_status = status
+        method.kyk_allowed = lambda user: user.status >= method.kyk_status
         return do_not_call_in_templates(method)
     return decorator
 
@@ -42,12 +38,12 @@ class Action(KykBase):
     #@property # Does not work with @property because property.__set__ is messed up.
     def kyk_STATUS(self):
         try:
-            return self._cls.kyk_ACTION_STATUS
+            return self.kyk.kyk_ACTION_STATUS
         except AttributeError:
-            return self._cls.kyk_STATUS
+            return self.kyk.kyk_STATUS
           
     def __get__(self, instance, cls=None):
-        self._instance, self._cls = instance, cls
+        self.kyk = instance if instance and self.kyk_is_instance else cls
         return self
 
     @classmethod
@@ -62,29 +58,20 @@ class Action(KykBase):
         """
         action = cls(*args, **kwargs)
         def decorator(method):
-            if isinstance(method, classmethod):
-                action.func = method.__func__
-                def kyk_in(*args, **kwargs):
-                    """
-                    Return the template and context used to render the kyk with the kykin tag.
-                    """
-                    print("class action: ", action)
-                    return action.func(action._cls, *args, **kwargs)
-            else:       
-                action.func = method
-                def kyk_in(*args, **kwargs):
-                    """
-                    Return the template and context used to render the kyk with the kykin tag.
-                    """
-                    print("action: ", action)
-                    return action.func(action._instance, *args, **kwargs)
-            action.kyk_in = kyk_in
+            action.kyk_is_instance = not isinstance(method, classmethod)
+            action.func = method if action.kyk_is_instance else method.__func__
             return action
         return decorator
   
+    def kyk_in(self, *args, **kwargs):
+        """
+        Return the template and context used to render the kyk with the kykin tag.
+        """
+        return self.func(self.kyk, *args, **kwargs)
+
     def __str__(self):
-        if hasattr(self, '_cls'):
-            return f"Action {self.func.__name__} on {self._cls}"
+        if hasattr(self, 'kyk'):
+            return f"Action {self.func.__name__} on {self.kyk}"
         else:
             return f"Action {self.func.__name__}"
 
@@ -124,8 +111,7 @@ class ButtonAction(Action):
     def __init__(self, status=None, name='', label=''):
         super().__init__(status=status)  
         self.name = name
-        if label:
-            self.label = label
+        self._label = label
 
     @classmethod
     def apply(cls, *args, **kwargs):
@@ -139,14 +125,8 @@ class ButtonAction(Action):
         """
         action = cls(*args, **kwargs)
         def decorator(method):
-            if isinstance(method, classmethod):
-                def caller(*args, **kwargs):
-                    return method.__func__(action._cls, *args, **kwargs)
-            else:
-                def caller(*args, **kwargs):
-                    return method.__func__(action._instance, *args, **kwargs)
-            action.method = caller
-            action.func = method.__func__
+            action.kyk_is_instance = not isinstance(method, classmethod)
+            action.func = method if action.kyk_is_instance else method.__func__
             if not action.name:
                 action.name = method.__name__
             return action
@@ -154,18 +134,14 @@ class ButtonAction(Action):
     
     @property
     def label(self):
-        return self.name.title()
-
-    @property
-    def kyk_identifier(self):
-        return (self._cls if self._instance is None else self._instance).kyk_identifier
+        return self._label or self.name.title()
 
     @property
     def submitter(self):
-        return '{}-{}'.format(self.kyk_identifier, self.name)
+        return '{}-{}'.format(self.kyk.kyk_identifier, self.name)
   
     def get_stage(self, request):
-        if (request.method == 'GET') and (request.GET.get(self.name) == self.kyk_identifier):
+        if (request.method == 'GET') and (request.GET.get(self.name) == self.kyk.kyk_identifier):
             stage = self.PRESENT_FORM
         elif (request.method == 'POST') and (self.submitter in request.POST):
             stage = self.PROCESS_FORM
@@ -173,12 +149,12 @@ class ButtonAction(Action):
             stage = self.PRESENT_BUTTON
         return stage
 
-    def kykin(self, request, stage=0, *args, **kwargs):
+    def kyk_in(self, request, stage=0, *args, **kwargs):
         stage = stage or self.get_stage(request)
         if stage <= self.PRESENT_BUTTON:
             return self.button(request, stage=stage)
         else:
-            return self.result(request, *args, **kwargs)
+            return self.result(request, stage=0, *args, **kwargs)
             # For backwards compatibility the stage parameter was left out.
 #            return self.result(request, stage=stage, *args, **kwargs)
                 
@@ -191,7 +167,7 @@ class ButtonAction(Action):
         # engine does not call the method before the kykin tag is executed.
         stage = stage or self.get_stage(request)
         design = '' if stage <= self.PRESENT_BUTTON else 'disabled' 
-        return KykGetButton(self.name, self.kyk_identifier, label=self.label, design=design)
+        return KykGetButton(self.name, self.kyk.kyk_identifier, label=self.label, design=design)
 
     @do_not_call_in_templates
     def result(self, request, stage=0, *args, **kwargs):
@@ -204,7 +180,7 @@ class ButtonAction(Action):
         if stage <= self.PRESENT_BUTTON:
             return ''
         data = request.POST if stage == self.PROCESS_FORM else None 
-        return self.method(request, *args, data=data, **kwargs)
+        return self.func(self.kyk, request, data=data, submitter=self.submitter, *args, **kwargs)
 
 
 #----------------------------------------------------------------------------------------------------------------------
