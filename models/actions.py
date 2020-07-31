@@ -7,14 +7,15 @@ from .base import Status, KykBase, KykGetButton
 
 #======================================================================================================================
 
-def simple_action(status):
+def simple_action(status=None):
     """
     Generates a decorator that converts a method into an action,
     accessible to users with a status higher than or equal to the given value.
     """
     def decorator(method):
-        method.kyk_status = status
-        method.kyk_allowed = lambda user: user.status >= method.kyk_status
+        if status is not None:
+            method.kyk_status = status
+            method.kyk_allowed = lambda user: user.status >= method.kyk_status
         return do_not_call_in_templates(method)
     return decorator
 
@@ -128,7 +129,7 @@ class ButtonAction(Action):
             action.kyk_is_instance = not isinstance(method, classmethod)
             action.func = method if action.kyk_is_instance else method.__func__
             if not action.name:
-                action.name = method.__name__
+                action.name = action.func.__name__
             return action
         return decorator
     

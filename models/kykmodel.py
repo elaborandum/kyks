@@ -10,7 +10,7 @@ from ..exceptions import Redirection
 from ..utils import cached_classproperty
 
 from .base import Status, Templates, Kyks, KykBase, KykGetButton
-from .actions import simple_action, Action
+from .actions import simple_action, ButtonAction
 
 
 #======================================================================================================================
@@ -77,43 +77,19 @@ class KykModel(KykBase, models.Model):
         return Form
         
     @classmethod
-    def kyk_process_form(cls, action, identifier, request, *, 
-            label=None, style=None, redirection='.', FormClass = None,
-            stage=0, **kwargs):
+    def kyk_process_form(cls, request, data, submitter, *, style=None, redirection='.', 
+                         files=None, FormClass=None, stage=0, **kwargs):
         """
         Present and process a form to create a new kyk.
         """
         # The style keyword argument is added to remove it from kwargs
         # before passing them on to kyk_process_form
-        if label is None:
-            label = action.title()
-        submitter = '{}-{}'.format(identifier, action)
-        if (request.method == 'GET') and (request.GET.get(action) == identifier):
-            # Present an unbound form to create the kyk.
-            posted = False
-            data = files = None
-        elif (request.method == 'POST') and (submitter in request.POST):
-            # Process a bound form to create the kyk.
-            # If it does not validate, then present it again.
-            posted = True
-            data = request.POST
-            files = request.FILES
-        elif stage <= 1:
-            # Display a button that calls to action.
-            return KykGetButton(action, identifier, label=label)
-        else: # Here we are in stage 2 but without any actions to process.
-            return ''
-        if stage == 1:
-            # If we arrice here in stage 1, then we should leave the rest of the
-            # processing for stage 2 and send here a disabled button
-            return KykGetButton(action, identifier, label=label, design='disabled')
-        # Here we are either in stage 0 (i.e. no stages) or in stage 2
         if FormClass is None:
             FormClass = cls.kyk_Form
         form = FormClass(data=data, files=files, prefix=submitter, **kwargs)
-        if posted and form.is_valid():
+        if form.is_valid():
             kyk = form.save()
-            return kyk.kyk_post_save(request, action, redirection)
+            return kyk.kyk_post_save(request, submitter, redirection)
         form_template = getattr(form, 'kyk_TEMPLATE', Templates.FORM)
         form_context = {
             'form': form,
@@ -125,8 +101,7 @@ class KykModel(KykBase, models.Model):
             form_context['style'] = style
         return form_template, form_context
 
-
-    def kyk_post_save(self, request, action, redirection):
+    def kyk_post_save(self, request, submitter, redirection):
         """
         Method called by kyk_process_form if the form was valid
         and the kyk was saved succesfully.
@@ -141,25 +116,22 @@ class KykModel(KykBase, models.Model):
             raise Redirection(redirection)
 
 
-    @Action.apply(Status.EDITOR)
+    @ButtonAction.apply(Status.EDITOR)
     @classmethod
-    def kyk_create(cls, request, stage=0, **kwargs):
+    def kyk_create(cls, request, data, submitter, **kwargs):
         """
         Present and process a form to create a new kyk.
         """
-        return cls.kyk_process_form('Create', cls.kyk_identifier, request, 
-            initial=kwargs, label=f"Create {cls.__name__}", stage=stage)
+        return cls.kyk_process_form(request, data, submitter, initial=kwargs)
 
-    @Action.apply(Status.EDITOR)
-    def kyk_edit(self, request, stage=0, **kwargs):
+    @ButtonAction.apply(Status.EDITOR)
+    def kyk_edit(self, request, data, submitter, **kwargs):
         """
         Present and process a form to edit this kyk.
         """
-        return self.kyk_process_form('Edit', self.kyk_identifier, request, 
-            instance=self, initial=kwargs, stage=stage,
-            )
+        return self.kyk_process_form(request, data, submitter, instance=self, initial=kwargs)
 
-    @Action.apply(Status.EDITOR)
+    @simple_action(Status.EDITOR)
     def kyk_delete(self, request, form_template=Templates.FORM, redirection=None, 
                    stage=0, design='', **kwargs):
         """

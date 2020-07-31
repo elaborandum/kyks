@@ -83,7 +83,7 @@ def append2Kyks(name=None):
         # The decorator was invoked as @append2Kyks('my_name')
         def decorating_name(cls):
             kyk = cls()
-            kyk.identifier = name
+            kyk.kyk_identifier = name
             Kyks[name] = kyk
             return cls
         return decorating_name 
@@ -91,7 +91,7 @@ def append2Kyks(name=None):
         def decorating_class(cls):
             name = cls.__name__
             kyk = cls()
-            kyk.identifier = name
+            kyk.kyk_identifier = name
             Kyks[name] = kyk
             return cls
         if name is None: 
