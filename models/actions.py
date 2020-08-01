@@ -1,8 +1,42 @@
+from django.utils import html
 from django.utils.functional import cached_property
+from django.utils.translation import gettext_lazy
 
 from ..utils import do_not_call_in_templates
 
-from .base import Status, KykBase, KykGetButton
+from .base import Status, Templates, KykBase
+
+
+#======================================================================================================================
+
+def url_with_get(action, code, *, url='.'):
+    return "{}/?{}={}".format(url.rstrip('/'), action, code)
+
+
+#----------------------------------------------------------------------------------------------------------------------
+
+def KykGetButton(action, code, label=None, *, url='.', design=''):
+    """
+    Creates a string that displays a GET button with a given label that produces a GET request with query ?action=code.
+    This can be used as the return result for kyk actions.
+    """
+    template_string = '<a class="button {}" href="{}">{}</a>'
+    complete_url = url_with_get(action, code, url=url)
+    if label is None:
+        label = gettext_lazy(action.replace('_', ' ').title()) 
+        # gettext_lazy translates the string
+    return html.format_html(template_string, design, complete_url, label)
+
+
+#======================================================================================================================
+
+def KykPostButton(submitter, label, *, url='.', cancel_label='', **kwargs):
+    """
+    Displays a POST button with a given label that produces a POST request with code as submit code.
+    This can be used as the return result for kyk actions.
+    """
+    kwargs.update(submitter=submitter, submit_label=label, destination_url=url, cancel_label=cancel_label)
+    return Templates.FORM, kwargs
 
 
 #======================================================================================================================
@@ -133,9 +167,9 @@ class ButtonAction(Action):
             return action
         return decorator
     
-    @property
+    @cached_property
     def label(self):
-        return self._label or self.name.title()
+        return self._label or self.name.replace('_', ' ').title()
 
     @property
     def submitter(self):
@@ -150,24 +184,25 @@ class ButtonAction(Action):
             stage = self.PRESENT_BUTTON
         return stage
 
-    def kyk_in(self, request, stage=0, *args, **kwargs):
+    def kyk_in(self, request, stage=0, design='', *args, **kwargs):
         stage = stage or self.get_stage(request)
         if stage <= self.PRESENT_BUTTON:
-            return self.button(request, stage=stage)
+            return self.button(request, stage=stage, design=design)
         else:
             return self.result(request, stage=0, *args, **kwargs)
             # For backwards compatibility the stage parameter was left out.
 #            return self.result(request, stage=stage, *args, **kwargs)
                 
     @do_not_call_in_templates
-    def button(self, request, stage=0):
+    def button(self, request, stage=0, design=''):
         """
         Displays a button that can activate the action.
         """
         # We have to apply the activate decorator to make sure that the Django template
         # engine does not call the method before the kykin tag is executed.
         stage = stage or self.get_stage(request)
-        design = '' if stage <= self.PRESENT_BUTTON else 'disabled' 
+        if stage > self.PRESENT_BUTTON:
+          design = 'disabled' 
         return KykGetButton(self.name, self.kyk.kyk_identifier, label=self.label, design=design)
 
     @do_not_call_in_templates

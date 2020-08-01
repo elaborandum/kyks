@@ -4,13 +4,13 @@ from django.db import models, IntegrityError
 from django import forms
 from django.urls import reverse
 from django.utils import html
-from django.utils.translation import gettext_lazy
+from django.utils.translation import gettext_lazy as _
 
 from ..exceptions import Redirection
 from ..utils import cached_classproperty
 
-from .base import Status, Templates, Kyks, KykBase, KykGetButton
-from .actions import simple_action, ButtonAction
+from .base import Status, Templates, Kyks, KykBase
+from .actions import ButtonAction
 
 
 #======================================================================================================================
@@ -116,7 +116,7 @@ class KykModel(KykBase, models.Model):
             raise Redirection(redirection)
 
 
-    @ButtonAction.apply(Status.EDITOR)
+    @ButtonAction.apply(Status.EDITOR, label=_("Create"))
     @classmethod
     def kyk_create(cls, request, data, submitter, **kwargs):
         """
@@ -124,51 +124,40 @@ class KykModel(KykBase, models.Model):
         """
         return cls.kyk_process_form(request, data, submitter, initial=kwargs)
 
-    @ButtonAction.apply(Status.EDITOR)
+    @ButtonAction.apply(Status.EDITOR, label=_("Edit"))
     def kyk_edit(self, request, data, submitter, **kwargs):
         """
         Present and process a form to edit this kyk.
         """
         return self.kyk_process_form(request, data, submitter, instance=self, initial=kwargs)
 
-    @simple_action(Status.EDITOR)
-    def kyk_delete(self, request, form_template=Templates.FORM, redirection=None, 
-                   stage=0, design='', **kwargs):
+    @ButtonAction.apply(Status.EDITOR, label=_("Delete"))
+    def kyk_delete(self, request, data, submitter, *, 
+                   form_template=Templates.FORM, redirection=None, 
+                   **kwargs):
         """
         Present and process a form to delete this kyk.
         """
-        action = 'Delete'
-        submitter = '{}-{}'.format(self.kyk_identifier, action)
-        button_design = ''
-        if (request.method == 'GET') and (request.GET.get(action) == self.kyk_identifier):
-            if stage == 1:
-                button_design = 'disabled'
-            else:
-                # Here we are either in stage 0 (i.e. no stages) or in stage 2
-                alert = gettext_lazy("Are you sure you want to delete this item?")
-                kwargs.update(alert=alert, submitter=submitter, submit_label="Confirm", 
-                              cancel_label="Cancel")
-                return form_template, kwargs
-        elif (request.method == 'POST') and (submitter in request.POST):
-            if stage == 1:
-                button_design = 'disabled'
-            else:
-                # Delete the kyk and its leaf.
-                if redirection is None:
-                    redirection = self.kyk_get_superior() 
-                try: 
-                    self.delete()
-                except IntegrityError:
-                    return html.format_html('<p><span class="alert label">{}</span></p>', 
-                        gettext_lazy("This item could not be deleted."),
-                        )
-                else: # try succeeded
-                    raise Redirection(redirection)
-        if stage <= 1:
-            # Display a button that calls to action.
-            return KykGetButton(action, self.kyk_identifier, design=f'{design} {button_design}')
-        else: # Here we are in stage 2 but without any actions to process.
-            return ''
+        # Here we are either in stage 0 (i.e. no stages) or in stage 2
+        if data is None:
+            alert = _("Are you sure you want to delete this item?")
+            kwargs.update(alert=alert, 
+                          submitter=submitter, 
+                          submit_label=_("Confirm"), 
+                          cancel_label=_("Cancel"),
+                          )
+            return form_template, kwargs
+        # else: # Delete the kyk and its leaf.
+        if redirection is None:
+            redirection = self.kyk_get_superior() 
+        try: 
+            self.delete()
+        except IntegrityError:
+            return html.format_html('<p><span class="alert label">{}</span></p>', 
+                _("This item could not be deleted."),
+                )
+        else: # try succeeded
+            raise Redirection(redirection)
 
     def kyk_get_superior(self):
         """

@@ -1,9 +1,7 @@
 from django.conf import settings
 from django.template import Template
 from django.urls import reverse
-from django.utils import html
 from django.utils.functional import cached_property
-from django.utils.translation import gettext_lazy
 
 
 #======================================================================================================================
@@ -252,38 +250,6 @@ class KykList(KykBase):
                 return 'Forbidden'
             return self.Model.kyk_create.kyk_in(request, stage=stage, **self.initial)
         return action
-
-
-#======================================================================================================================
-
-def url_with_get(action, code, *, url='.'):
-    return "{}/?{}={}".format(url.rstrip('/'), action, code)
-
-
-#----------------------------------------------------------------------------------------------------------------------
-
-def KykGetButton(action, code, label=None, *, url='.', design=''):
-    """
-    Creates a string that displays a GET button with a given label that produces a GET request with query ?action=code.
-    This can be used as the return result for kyk actions.
-    """
-    template_string = '<a class="button {}" href="{}">{}</a>'
-    complete_url = url_with_get(action, code, url=url)
-    if label is None:
-        label = gettext_lazy(action.replace('_', ' ').title()) 
-        # gettext_lazy translates the string
-    return html.format_html(template_string, design, complete_url, label)
-
-
-#======================================================================================================================
-
-def KykPostButton(submitter, label, *, url='.', cancel_label='', **kwargs):
-    """
-    Displays a POST button with a given label that produces a POST request with code as submit code.
-    This can be used as the return result for kyk actions.
-    """
-    kwargs.update(submitter=submitter, submit_label=label, destination_url=url, cancel_label=cancel_label)
-    return Templates.FORM, kwargs
 
 
 #======================================================================================================================
