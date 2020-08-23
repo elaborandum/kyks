@@ -2,6 +2,7 @@
 Some general-purpose classes, functions and/or decorators that might be useful for other apps as well.
 """
 
+from django import forms as django_forms
 from django.conf import settings
 from django.db import models as django_models
 from django.template import Template
@@ -76,9 +77,18 @@ class Choices:
         return self.choices.__len__()
 
     def ChoiceField(self, *args, **kwargs):
+        """
+        Returns a model field that stores a choice out of the available choices.
+        """
         return django_models.CharField(max_length=self.max_length, choices=self.choices, *args, **kwargs)
 
-
+    def ChoiceFormField(self, *args, **kwargs):
+        """
+        Returns a form field that allows to pick one of the available choices.
+        """
+        return django_forms.ChoiceField(choices=self.choices, *args, **kwargs)
+ 
+        
 #======================================================================================================================
 
 def template_from_file(filename):

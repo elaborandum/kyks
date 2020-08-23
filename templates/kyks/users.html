@@ -3,9 +3,9 @@
 
 {% block users %}
   {% if user.is_authenticated %}
-    <button class="button" type="button" data-toggle="example-dropdown">
+    <button class="button" type="button" data-toggle="user-pane">
     Hello {{ user.first_name|default:user.username }}</button>
-    <div class="dropdown-pane" id="example-dropdown" data-dropdown>
+    <div class="dropdown-pane" id="user-pane" data-dropdown>
       <ul class="menu vertical">
         {% if style >= Styles.SHOW %}
           <li>{% kykin kyk.change_status %}</li>
@@ -19,10 +19,14 @@
     </ul>
     </div>
   {% else %}
-    <a href="#">{% trans "Please log in for more options." %}</a>
-    <ul class="menu vertical">
-      <li>{% kykin kyk.login %}</li>
-      <li>{% kykin kyk.register %}</li>
-    </ul>
+    <button class="button hollow" type="button" data-toggle="login-pane">
+      {% trans "Please log in for more options." %}
+    </button>
+    <div class="dropdown-pane" id="login-pane" data-dropdown>
+      <ul class="menu vertical">
+        <li>{% kykin kyk.login %}</li>
+        <li>{% kykin kyk.register %}</li>
+      </ul>
+    </div>
   {% endif %}
 {% endblock users %}
