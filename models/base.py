@@ -113,7 +113,7 @@ class KykBase:
     # so KykBase does not make any reference to KykPanel.
 
     kyk_STATUS = Status.PUBLIC # Default required status to view the kyk
-    kyk_ACTION_STATUS = Status.PUBLIC # Default required status to act on the kyk
+    #kyk_ACTION_STATUS = Status.PUBLIC # Default required status to act on the kyk
     kyk_TEMPLATE = Template("{{ kyk }}") 
     
     def kyk_in(self, request, template=None, **kwargs):

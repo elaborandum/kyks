@@ -48,8 +48,8 @@ def simple_action(status=None):
     """
     def decorator(method):
         if status is not None:
-            method.kyk_status = status
-            method.kyk_allowed = lambda user: user.status >= method.kyk_status
+            method.kyk_STATUS = status
+            method.kyk_allowed = lambda user: user.status >= method.kyk_STATUS
         return do_not_call_in_templates(method)
     return decorator
 
@@ -187,13 +187,14 @@ class ButtonAction(Action):
     def kyk_in(self, request, stage=0, design='', *args, **kwargs):
         stage = stage or self.get_stage(request)
         if stage <= self.PRESENT_BUTTON:
-            return self.button(request, stage=stage, design=design)
+            return self.button.func(self, request, stage=stage, design=design)
         else:
-            return self.result(request, stage=0, *args, **kwargs)
+            return self.result.func(self, request, stage=0, *args, **kwargs)
             # For backwards compatibility the stage parameter was left out.
 #            return self.result(request, stage=stage, *args, **kwargs)
                 
-    @do_not_call_in_templates
+    @Action.apply() # Inherit action.button.kyk_STATUS from action.kyk_STATUS
+#    @do_not_call_in_templates
     def button(self, request, stage=0, design=''):
         """
         Displays a button that can activate the action.
@@ -202,10 +203,11 @@ class ButtonAction(Action):
         # engine does not call the method before the kykin tag is executed.
         stage = stage or self.get_stage(request)
         if stage > self.PRESENT_BUTTON:
-          design = 'disabled' 
+            design = 'disabled' 
         return KykGetButton(self.name, self.kyk.kyk_identifier, label=self.label, design=design)
 
-    @do_not_call_in_templates
+#    @do_not_call_in_templates
+    @Action.apply() # Inherit action.result.kyk_STATUS from action.kyk_STATUS
     def result(self, request, stage=0, *args, **kwargs):
         """
         Displays a button that can activate the action.
