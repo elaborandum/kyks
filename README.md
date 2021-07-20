@@ -32,7 +32,7 @@ kyk was called from.
 
 ## Etymology
 
-**view -> look -> kijk -> kÿk -> kyk** :smile:
+**view → look → kijk → kÿk → kyk** :smile:
 
 > "Although that way may not be obvious at first unless you're Dutch."
 >
